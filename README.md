@@ -62,17 +62,11 @@ make dev
 ```
 frontend/    React + TypeScript (Vite), hot reload on port 3000
 backend/     FastAPI (Python 3.11+), hot reload on port 8000
-             └── PostgreSQL 15 for data storage
+             └── SQLite (dev) / PostgreSQL (prod) for data storage
              └── Alembic for database migrations
              └── Claude API for plan generation + coach
 ```
 
-## Milestones
-
-- **M1 (current):** Dashboard + Running module + AI coach
-- **M2:** Suunto sync, Biking, Swimming, Food + cross-module intelligence
-- **M3:** Gym (PDF principles), recovery intelligence, race predictor
-
-## Suunto Watch Sync (Milestone 2)
+## Suunto Watch Sync
 
 Register at [apizone.suunto.com](https://apizone.suunto.com), create an app, and add the credentials to your `.env`. The dashboard will then auto-sync after every watch sync.

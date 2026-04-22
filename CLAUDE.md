@@ -59,4 +59,5 @@ Copy `.env.example` → `.env`. Required: `ANTHROPIC_API_KEY`. Without it the ap
 
 ## Additional Documentation
 
+- `.claude/docs/roadmap.md` — milestone tracker, open tasks, known bugs, dev notes (check this before starting new features)
 - `.claude/docs/architectural_patterns.md` — cross-module signals, Claude prompt structure, plan caching, onboarding gate, JSON blob storage, error handling
