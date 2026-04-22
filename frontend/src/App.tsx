@@ -2,6 +2,7 @@ import { Routes, Route, NavLink } from 'react-router-dom'
 import { Activity, Bike, Dumbbell, Fish, Home, Salad, Settings } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Running from './pages/Running'
+import RunningSetup from './pages/RunningSetup'
 import SettingsPage from './pages/SettingsPage'
 import ComingSoon from './pages/ComingSoon'
 
@@ -62,6 +63,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/running" element={<Running />} />
+          <Route path="/running/setup" element={<RunningSetup />} />
           <Route path="/biking" element={<ComingSoon module="Biking" milestone="M2" />} />
           <Route path="/swimming" element={<ComingSoon module="Swimming" milestone="M2" />} />
           <Route path="/gym" element={<ComingSoon module="Gym" milestone="M3" />} />

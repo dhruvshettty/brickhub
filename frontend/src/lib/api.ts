@@ -28,6 +28,12 @@ export const logWorkout = (data: WorkoutLogRequest) =>
   request('/running/log', { method: 'POST', body: JSON.stringify(data) })
 export const recalibrateRunning = () =>
   request('/running/recalibrate', { method: 'POST' })
+export const getRunningConfig = () =>
+  request<RunningConfigResponse>('/running/config')
+export const saveRunningConfig = (data: RunningConfigRequest) =>
+  request<{ config: RunningConfig; saved: boolean }>('/running/config', { method: 'PUT', body: JSON.stringify(data) })
+export const classifyRunningAbility = (data: ClassifyRequest) =>
+  request<ClassifyResult>('/running/classify', { method: 'POST', body: JSON.stringify(data) })
 
 // Coach
 export const sendCoachMessage = (content: string) =>
@@ -98,6 +104,57 @@ export interface CoachMessage {
 export interface CoachResponse {
   response: string
   ai_unavailable: boolean
+}
+
+export interface RunningConfig {
+  target_distance: string
+  has_previous_race: boolean
+  best_time_seconds: number | null
+  effort_score: number | null
+  ability_level: string
+  aerobic_base_priority: boolean
+  recent_runs_4_weeks: number
+  suggested_runs_per_week: number
+  preferred_days: string[]
+  long_run_day: string
+  plan_start_date: string
+  race_date: string | null
+  plan_weeks: number | null
+  onboarded_at: string | null
+}
+
+export interface RunningConfigResponse {
+  config: RunningConfig | null
+  onboarded: boolean
+}
+
+export interface RunningConfigRequest {
+  target_distance: string
+  has_previous_race: boolean
+  best_time_seconds?: number | null
+  effort_score?: number | null
+  ability_level: string
+  aerobic_base_priority: boolean
+  recent_runs_4_weeks: number
+  suggested_runs_per_week: number
+  preferred_days: string[]
+  long_run_day: string
+  plan_start_date: string
+  race_date?: string | null
+  plan_weeks?: number | null
+}
+
+export interface ClassifyRequest {
+  distance: string
+  time_seconds: number
+  effort_score: number
+}
+
+export interface ClassifyResult {
+  base_level: string
+  adjusted_level: string
+  aerobic_base_priority: boolean
+  explanation: string
 }
 
 export interface WorkoutLogRequest {

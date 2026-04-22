@@ -9,6 +9,7 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.models.module_config import ModuleConfig
 from app.models.profile import Profile
 from app.models.plan import WeeklyPlan, ModuleType
 from app.models.workout import WorkoutLog
@@ -40,6 +41,36 @@ def _profile_context(profile: Profile, today: date) -> str:
     return "\n".join(lines)
 
 
+def _running_config_context(config: dict, today: date) -> str:
+    race_date_str = config.get("race_date")
+    weeks_to_race = None
+    if race_date_str:
+        try:
+            race_dt = date.fromisoformat(race_date_str)
+            weeks_to_race = max(0, (race_dt - today).days // 7)
+        except ValueError:
+            pass
+
+    aerobic_note = ""
+    if config.get("aerobic_base_priority"):
+        aerobic_note = (
+            "\nIMPORTANT: This athlete's aerobic base is their primary limiter. "
+            "Prioritise Zone 1-2 easy running. Keep at least 80% of sessions easy. "
+            "Do not add tempo or interval work until week 4+."
+        )
+
+    lines = [
+        f"Running goal: {config.get('target_distance', 'not set')}",
+        f"Ability level: {config.get('ability_level', 'unknown')}",
+        f"Aerobic base priority: {config.get('aerobic_base_priority', False)}",
+        f"Runs per week: {config.get('suggested_runs_per_week', 3)}",
+        f"Preferred days: {', '.join(config.get('preferred_days', []))}",
+        f"Long run day: {config.get('long_run_day', 'sunday')}",
+        f"Weeks to race: {weeks_to_race or 'unknown'}",
+    ]
+    return "\n".join(lines) + aerobic_note
+
+
 def generate_running_plan(
     db: Session,
     claude: ClaudeService,
@@ -50,6 +81,13 @@ def generate_running_plan(
     today = date.today()
     signals = get_signals(db, profile, today)
     signals_str = signals_to_context_string(signals)
+
+    # Load running-specific config if available
+    running_config_row = db.query(ModuleConfig).filter(
+        ModuleConfig.profile_id == profile.id,
+        ModuleConfig.module == "running",
+    ).first()
+    running_config = running_config_row.config_json if running_config_row else {}
 
     # Recent completions for context
     four_weeks_ago = week_start - timedelta(weeks=4)
@@ -76,13 +114,18 @@ def generate_running_plan(
         },
     ]
 
+    running_config_str = ""
+    if running_config:
+        running_config_str = f"\nRunning configuration:\n{_running_config_context(running_config, today)}\n"
+
     user_prompt = f"""Cross-module signals (from all training this week):
 {signals_str}
-
+{running_config_str}
 Recent running completion rate (last 4 weeks): {completion_rate:.0f}%
 
 Generate a 7-day running plan for the week starting {week_start.isoformat()}.
 Include rest days. Adjust intensity based on fatigue and cross-module signals.
+Schedule runs on the athlete's preferred days when possible.
 
 Return JSON with this exact structure:
 {{

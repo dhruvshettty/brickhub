@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
-import { getRunningPlan, recalibrateRunning, logWorkout, PlanDay, PlanResponse } from '../lib/api'
+import { useNavigate } from 'react-router-dom'
+import { RefreshCw, Settings2 } from 'lucide-react'
+import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, PlanDay, PlanResponse, RunningConfig } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 
 const RUN_TYPE_COLOR: Record<string, string> = {
@@ -24,16 +25,47 @@ function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split('T')[0]
 }
 
+function weeksToRace(raceDateStr: string | null): number | null {
+  if (!raceDateStr) return null
+  const diff = new Date(raceDateStr).getTime() - Date.now()
+  return Math.round(diff / (7 * 24 * 60 * 60 * 1000))
+}
+
+function capitalise(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ')
+}
+
 export default function Running() {
+  const navigate = useNavigate()
   const [planData, setPlanData] = useState<PlanResponse | null>(null)
+  const [runningConfig, setRunningConfig] = useState<RunningConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [recalibrating, setRecalibrating] = useState(false)
   const [logging, setLogging] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadPlan()
+    init()
   }, [])
+
+  const init = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { config, onboarded } = await getRunningConfig()
+      if (!onboarded) {
+        navigate('/running/setup')
+        return
+      }
+      setRunningConfig(config)
+      const data = await getRunningPlan()
+      setPlanData(data)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const loadPlan = async () => {
     setLoading(true)
@@ -84,34 +116,81 @@ export default function Running() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Running</h1>
+          {runningConfig && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{
+                background: 'rgba(99,102,241,0.15)',
+                color: 'var(--accent)',
+                borderRadius: 20,
+                padding: '2px 10px',
+                fontSize: 12,
+                fontWeight: 600,
+              }}>
+                {capitalise(runningConfig.ability_level)}
+              </span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>·</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                {capitalise(runningConfig.target_distance)}
+              </span>
+              {runningConfig.race_date && weeksToRace(runningConfig.race_date) !== null && (
+                <>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>·</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                    {weeksToRace(runningConfig.race_date)} weeks to race
+                  </span>
+                </>
+              )}
+            </div>
+          )}
           {plan && (
-            <p style={{ color: 'var(--text-muted)' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>
               Week of {new Date(plan.week_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
             </p>
           )}
         </div>
-        <button
-          onClick={handleRecalibrate}
-          disabled={recalibrating}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            color: 'var(--text)',
-            padding: '8px 16px',
-            fontSize: 13,
-            opacity: recalibrating ? 0.5 : 1,
-          }}
-        >
-          <RefreshCw size={14} className={recalibrating ? 'spin' : ''} />
-          {recalibrating ? 'Recalibrating...' : 'Recalibrate week'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => navigate('/running/setup')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              color: 'var(--text-muted)',
+              padding: '8px 14px',
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            <Settings2 size={14} />
+            Edit plan settings
+          </button>
+          <button
+            onClick={handleRecalibrate}
+            disabled={recalibrating}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              color: 'var(--text)',
+              padding: '8px 16px',
+              fontSize: 13,
+              opacity: recalibrating ? 0.5 : 1,
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={14} className={recalibrating ? 'spin' : ''} />
+            {recalibrating ? 'Recalibrating...' : 'Recalibrate week'}
+          </button>
+        </div>
       </div>
 
       {aiUnavailable && (
