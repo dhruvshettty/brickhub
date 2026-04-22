@@ -1,0 +1,131 @@
+"""Training plan generation via Claude.
+
+Each module has its own generator. All generators pull cross-module signals
+and inject them into the Claude prompt so plans are aware of each other.
+"""
+
+import json
+from datetime import date, timedelta
+
+from sqlalchemy.orm import Session
+
+from app.models.profile import Profile
+from app.models.plan import WeeklyPlan, ModuleType
+from app.models.workout import WorkoutLog
+from app.services.claude_service import ClaudeService, ClaudeUnavailableError
+from app.services.cross_module import get_signals, signals_to_context_string
+
+
+RUN_TYPES = {
+    "sprint": ["easy", "tempo", "long"],
+    "olympic": ["easy", "tempo", "interval", "long"],
+    "70.3": ["easy", "tempo", "interval", "long", "race_pace"],
+    "ironman": ["easy", "tempo", "interval", "long", "race_pace", "recovery"],
+}
+
+
+def _profile_context(profile: Profile, today: date) -> str:
+    weeks_to_race = None
+    if profile.race_date:
+        weeks_to_race = max(0, (profile.race_date - today).days // 7)
+
+    lines = [
+        f"Race goal: {profile.race_distance or 'not set'}",
+        f"Race date: {profile.race_date or 'not set'}",
+        f"Weeks until race: {weeks_to_race or 'unknown'}",
+        f"Weekly training hours available: {profile.weekly_training_hours}",
+        f"Age: {profile.age or 'unknown'}",
+        f"Weight: {profile.weight_kg or 'unknown'} kg",
+    ]
+    return "\n".join(lines)
+
+
+def generate_running_plan(
+    db: Session,
+    claude: ClaudeService,
+    profile: Profile,
+    week_start: date,
+) -> dict:
+    """Generate a 7-day running plan. Returns the plan as a dict."""
+    today = date.today()
+    signals = get_signals(db, profile, today)
+    signals_str = signals_to_context_string(signals)
+
+    # Recent completions for context
+    four_weeks_ago = week_start - timedelta(weeks=4)
+    recent = db.query(WorkoutLog).filter(
+        WorkoutLog.module == "running",
+        WorkoutLog.planned_at >= four_weeks_ago,
+    ).all()
+    completion_rate = (
+        len([w for w in recent if w.completed_at]) / max(len(recent), 1) * 100
+    )
+
+    system_parts = [
+        {
+            "text": (
+                "You are a triathlon running coach. Generate adaptive, evidence-based training plans. "
+                "You understand periodization, pace zones, and how to balance running with biking and swimming. "
+                "Always return valid JSON only — no markdown, no explanations outside the JSON."
+            ),
+            "cache": True,
+        },
+        {
+            "text": f"Athlete profile:\n{_profile_context(profile, today)}",
+            "cache": True,
+        },
+    ]
+
+    user_prompt = f"""Cross-module signals (from all training this week):
+{signals_str}
+
+Recent running completion rate (last 4 weeks): {completion_rate:.0f}%
+
+Generate a 7-day running plan for the week starting {week_start.isoformat()}.
+Include rest days. Adjust intensity based on fatigue and cross-module signals.
+
+Return JSON with this exact structure:
+{{
+  "week_start": "{week_start.isoformat()}",
+  "module": "running",
+  "summary": "One sentence describing this week's focus",
+  "days": [
+    {{
+      "date": "YYYY-MM-DD",
+      "type": "easy|tempo|interval|long|race_pace|recovery|rest",
+      "distance_km": 0,
+      "duration_minutes": 0,
+      "pace_zone": "zone1-5 or null",
+      "description": "Brief instruction for this session"
+    }}
+  ]
+}}"""
+
+    raw = claude.generate_with_cache(system_parts, user_prompt)
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # Claude returned something with wrapping text — extract JSON
+        import re
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise ValueError(f"Could not parse plan JSON from Claude response: {raw[:200]}")
+
+
+def save_plan(db: Session, module: str, week_start: date, plan_json: dict) -> WeeklyPlan:
+    # Remove any existing plan for this week/module
+    existing = db.query(WeeklyPlan).filter(
+        WeeklyPlan.module == module,
+        WeeklyPlan.week_start == week_start,
+    ).first()
+    if existing:
+        db.delete(existing)
+        db.flush()
+
+    plan = WeeklyPlan(module=module, week_start=week_start, plan_json=plan_json)
+    db.add(plan)
+    db.commit()
+    db.refresh(plan)
+    return plan

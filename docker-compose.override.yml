@@ -1,0 +1,14 @@
+# Dev overrides: hot reload for both frontend and backend
+version: '3.9'
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # preserve container's node_modules
+    command: npm run dev -- --host 0.0.0.0
