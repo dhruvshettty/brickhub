@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.module_config import ModuleConfig
 from app.models.plan import WeeklyPlan
 from app.models.workout import WorkoutLog
 from app.services.cross_module import get_signals
@@ -19,17 +20,10 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     week_start = today - timedelta(days=today.weekday())
     profile = _get_or_create_profile(db)
 
-    # Current week plans
-    plans = db.query(WeeklyPlan).filter(
-        WeeklyPlan.week_start == week_start,
-    ).all()
+    plans = db.query(WeeklyPlan).filter(WeeklyPlan.week_start == week_start).all()
     plans_by_module = {p.module: p.plan_json for p in plans}
 
-    # Workout logs this week
-    logs = db.query(WorkoutLog).filter(
-        WorkoutLog.planned_at >= week_start,
-    ).all()
-
+    logs = db.query(WorkoutLog).filter(WorkoutLog.planned_at >= week_start).all()
     completed_by_module: dict[str, int] = {}
     total_by_module: dict[str, int] = {}
     for log in logs:
@@ -38,10 +32,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         if log.completed_at:
             completed_by_module[module] = completed_by_module.get(module, 0) + 1
 
-    # Cross-module signals
     signals = get_signals(db, profile, today)
 
-    # Today's running session
     today_run = None
     running_plan = plans_by_module.get("running")
     if running_plan:
@@ -50,20 +42,27 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 today_run = day
                 break
 
-    # Race countdown
+    # Race countdown from running module config
     race_countdown = None
-    if profile.race_date:
-        days = (profile.race_date - today).days
-        race_countdown = {"days": days, "distance": profile.race_distance, "date": str(profile.race_date)}
+    running_config = db.query(ModuleConfig).filter(
+        ModuleConfig.profile_id == profile.id,
+        ModuleConfig.module == "running",
+    ).first()
+    if running_config:
+        race_date_str = running_config.config_json.get("race_date")
+        target_distance = running_config.config_json.get("target_distance")
+        if race_date_str:
+            try:
+                race_date = date.fromisoformat(race_date_str)
+                days = (race_date - today).days
+                race_countdown = {"days": days, "distance": target_distance, "date": race_date_str}
+            except ValueError:
+                pass
 
     return {
         "today": today.isoformat(),
         "week_start": week_start.isoformat(),
-        "profile": {
-            "name": profile.name,
-            "race_distance": profile.race_distance,
-            "race_date": str(profile.race_date) if profile.race_date else None,
-        },
+        "profile": {"name": profile.name},
         "race_countdown": race_countdown,
         "today_run": today_run,
         "module_progress": {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
+from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -80,11 +81,6 @@ def save_running_config(req: RunningConfigRequest, db: Session = Depends(get_db)
 
     config_data: dict[str, Any] = req.model_dump()
     config_data["onboarded_at"] = datetime.utcnow().isoformat() + "Z"
-
-    # Write race_date back to profile for cross-module signals
-    if req.race_date:
-        profile.race_date = date.fromisoformat(req.race_date)
-        db.add(profile)
 
     config = _get_running_config(db, profile.id)
     if config is None:

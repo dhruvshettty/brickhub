@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import date
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.profile import Profile, RaceDistance
+from app.models.profile import Profile
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -16,9 +14,6 @@ class ProfileUpdate(BaseModel):
     name: str | None = None
     age: int | None = None
     weight_kg: float | None = None
-    ftp_watts: int | None = None
-    race_distance: RaceDistance | None = None
-    race_date: date | None = None
     weekly_training_hours: int | None = None
 
 
@@ -27,9 +22,6 @@ class ProfileResponse(BaseModel):
     name: str | None
     age: int | None
     weight_kg: float | None
-    ftp_watts: int | None
-    race_distance: str | None
-    race_date: date | None
     weekly_training_hours: int
 
     class Config:

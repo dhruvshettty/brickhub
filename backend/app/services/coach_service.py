@@ -10,6 +10,7 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.models.module_config import ModuleConfig
 from app.models.profile import Profile
 from app.models.plan import WeeklyPlan
 from app.models.coach import CoachMessage, MessageRole
@@ -39,9 +40,22 @@ def _build_coach_system(profile: Profile, db: Session, today: date) -> str:
             plan_summary += f" Next session: {next_run.get('type')} run, {next_run.get('distance_km')}km on {next_run.get('date')}."
 
     race_info = ""
-    if profile.race_date and profile.race_distance:
-        days_to_race = (profile.race_date - today).days
-        race_info = f"Race: {profile.race_distance} on {profile.race_date} ({days_to_race} days away)."
+    running_config = db.query(ModuleConfig).filter(
+        ModuleConfig.profile_id == profile.id,
+        ModuleConfig.module == "running",
+    ).first()
+    if running_config:
+        cfg = running_config.config_json
+        race_date_str = cfg.get("race_date")
+        target_distance = cfg.get("target_distance")
+        if race_date_str and target_distance:
+            from datetime import date as _date
+            try:
+                race_date = _date.fromisoformat(race_date_str)
+                days_to_race = (race_date - today).days
+                race_info = f"Race: {target_distance} on {race_date} ({days_to_race} days away)."
+            except ValueError:
+                pass
 
     return f"""You are brickhub, a personal AI triathlon coach. You know everything about this athlete's training.
 
@@ -88,10 +102,6 @@ def chat(
 
     context_snapshot = {
         "signals": get_signals(db, profile, today),
-        "race_info": {
-            "distance": profile.race_distance,
-            "date": str(profile.race_date) if profile.race_date else None,
-        },
     }
 
     # Save user message

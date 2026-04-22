@@ -9,15 +9,31 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.models.module_config import ModuleConfig
 from app.models.profile import Profile
 from app.models.workout import WorkoutLog, ModuleType
+
+
+def _get_race_date(db: Session, profile_id: int) -> date | None:
+    """Pull race_date from whichever module config has one set."""
+    config = db.query(ModuleConfig).filter(
+        ModuleConfig.profile_id == profile_id,
+        ModuleConfig.module == "running",
+    ).first()
+    if config:
+        raw = config.config_json.get("race_date")
+        if raw:
+            try:
+                return date.fromisoformat(raw)
+            except ValueError:
+                pass
+    return None
 
 
 def get_signals(db: Session, profile: Profile, today: date) -> dict:
     """Returns cross-module signals for injection into Claude prompts."""
     week_start = today - timedelta(days=today.weekday())
 
-    # Workouts this week
     week_logs = (
         db.query(WorkoutLog)
         .filter(WorkoutLog.planned_at >= week_start)
@@ -36,11 +52,12 @@ def get_signals(db: Session, profile: Profile, today: date) -> dict:
     # Training load: total minutes completed this week
     total_minutes = sum(w.duration_minutes or 0 for w in completed)
 
-    # Race proximity
+    # Race proximity — read from module configs
     race_proximity = None
     days_to_race = None
-    if profile.race_date:
-        days_to_race = (profile.race_date - today).days
+    race_date = _get_race_date(db, profile.id)
+    if race_date:
+        days_to_race = (race_date - today).days
         if days_to_race <= 7:
             race_proximity = "race_week"
         elif days_to_race <= 14:
@@ -50,7 +67,6 @@ def get_signals(db: Session, profile: Profile, today: date) -> dict:
         else:
             race_proximity = f"{days_to_race}d"
 
-    # Fatigue estimate from training load (rough heuristic)
     fatigue_level = "low"
     if total_minutes > 300:
         fatigue_level = "high"

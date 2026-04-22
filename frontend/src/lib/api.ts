@@ -47,16 +47,13 @@ export interface Profile {
   name: string | null
   age: number | null
   weight_kg: number | null
-  ftp_watts: number | null
-  race_distance: 'sprint' | 'olympic' | '70.3' | 'ironman' | null
-  race_date: string | null
   weekly_training_hours: number
 }
 
 export interface DashboardSummary {
   today: string
   week_start: string
-  profile: { name: string | null; race_distance: string | null; race_date: string | null }
+  profile: { name: string | null }
   race_countdown: { days: number; distance: string; date: string } | null
   today_run: PlanDay | null
   module_progress: Record<string, { completed: number; total: number }>

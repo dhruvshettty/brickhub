@@ -25,15 +25,8 @@ RUN_TYPES = {
 }
 
 
-def _profile_context(profile: Profile, today: date) -> str:
-    weeks_to_race = None
-    if profile.race_date:
-        weeks_to_race = max(0, (profile.race_date - today).days // 7)
-
+def _profile_context(profile: Profile) -> str:
     lines = [
-        f"Race goal: {profile.race_distance or 'not set'}",
-        f"Race date: {profile.race_date or 'not set'}",
-        f"Weeks until race: {weeks_to_race or 'unknown'}",
         f"Weekly training hours available: {profile.weekly_training_hours}",
         f"Age: {profile.age or 'unknown'}",
         f"Weight: {profile.weight_kg or 'unknown'} kg",
@@ -109,7 +102,7 @@ def generate_running_plan(
             "cache": True,
         },
         {
-            "text": f"Athlete profile:\n{_profile_context(profile, today)}",
+            "text": f"Athlete profile:\n{_profile_context(profile)}",
             "cache": True,
         },
     ]
