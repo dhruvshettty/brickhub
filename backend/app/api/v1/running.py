@@ -53,6 +53,12 @@ class RunningConfigRequest(BaseModel):
     plan_start_date: str
     race_date: str | None = None
     plan_weeks: int | None = None
+    race_terrain: str | None = None
+    training_terrain: str | None = None
+    volume_preference: str | None = None
+    effort_preference: str | None = None
+    is_primary_sport: bool = False
+    preferences_user_set: bool = False
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

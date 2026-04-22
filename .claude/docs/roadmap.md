@@ -15,6 +15,14 @@ Everything needed to nail the running experience end-to-end, plus a solid traini
 - [x] Config persisted in `module_configs` table
 - [x] Onboarding gate on Running page (redirect if not onboarded)
 - [x] Plan invalidated on config save (forces fresh generation with new settings)
+- [x] Race terrain + training terrain collected in Step 1 (flat / rolling / moderate / hilly, with m/km thresholds)
+- [x] Terrain mismatch note injected into Claude prompt when race and training terrains differ
+- [x] Training volume preference (gradual / steady / progressive) with SVG curve visualization
+- [x] Training effort preference (comfortable / balanced / challenging)
+- [x] Auto-derived from ability level — beginner→gradual/comfortable, intermediate→steady/balanced, advanced→progressive/challenging
+- [x] Collapsible "Training preferences" section in Step 3 — shown collapsed with auto-selections, expandable to override
+- [x] `preferences_user_set` flag — explicit user choices take precedence over cross-module signals
+- [x] `is_primary_sport` flag — marks this module's schedule as load-bearing for other modules to plan around
 
 ### Running — Plan & Logging ✅ Done
 - [x] Weekly plan generation (Claude Sonnet, cross-module aware)
@@ -23,7 +31,15 @@ Everything needed to nail the running experience end-to-end, plus a solid traini
 - [x] Ability badge + race countdown in header
 - [x] Edit plan settings button
 
-### Running — Polish 🔲 To Do
+### Running — Onboarding Polish 🔲 To Do (from DX review)
+- [ ] Wizard Step 0: collect name, age, weight (optional), weekly training hours before distance selection
+- [ ] Wizard Step 1: add training goal tiles (just finish / beat a target time / build fitness) — target time input if chosen
+- [ ] Wizard Step 3: add weekly km slider ("how many km/week are you currently running?") — feed into Claude prompt
+- [ ] Wizard Step 3: default `recentRuns4Weeks` to 0 (not 12); show logic behind weekly suggestion
+- [ ] Wizard Step 5: add "What week 1 looks like" estimated breakdown (computed, no Claude call)
+- [ ] Dashboard: guided first-run banner when no modules set up; lock coach panel until setup complete
+
+### Running — Plan & UI Polish 🔲 To Do
 - [ ] Re-onboarding flow: editing config should offer to regenerate or keep current plan
 - [ ] Plan view shows preferred days highlighted
 - [ ] Completed sessions marked persistently (not just a button)

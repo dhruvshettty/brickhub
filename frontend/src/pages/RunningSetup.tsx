@@ -10,6 +10,43 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+const VOLUME_OPTIONS = [
+  {
+    id: 'gradual',
+    label: 'Gradual',
+    desc: 'Slow, conservative build. Best for returning from a break or new to structured training.',
+    // points for a gentle almost-flat curve
+    points: '0,34 17,33 33,31 50,29 67,27 83,25 100,23',
+  },
+  {
+    id: 'steady',
+    label: 'Steady',
+    desc: 'Standard ~10%/week progression. The proven default for consistent improvement.',
+    // points for a smooth linear ramp
+    points: '0,34 17,29 33,23 50,18 67,13 83,9 100,6',
+  },
+  {
+    id: 'progressive',
+    label: 'Progressive',
+    desc: 'Block periodization — build hard, recover, build harder. For athletes who respond well to load.',
+    // points showing 3-up / 1-down pattern
+    points: '0,34 17,27 33,20 50,26 67,16 83,22 100,10',
+  },
+]
+
+const EFFORT_OPTIONS = [
+  { id: 'comfortable', label: 'Comfortable', desc: '~75% easy running. Aerobic base first, intensity later.' },
+  { id: 'balanced', label: 'Balanced', desc: '80/20 easy/hard. Standard polarized training.' },
+  { id: 'challenging', label: 'Challenging', desc: 'More threshold and intervals. For athletes ready to push.' },
+]
+
+const TERRAINS = [
+  { id: 'flat', label: 'Flat', desc: '< 5m/km elevation gain' },
+  { id: 'rolling', label: 'Rolling', desc: '5–10m/km elevation gain' },
+  { id: 'moderate', label: 'Moderate', desc: '10–20m/km elevation gain' },
+  { id: 'hilly', label: 'Hilly', desc: '> 20m/km elevation gain' },
+]
+
 const DISTANCES = [
   { id: '5k', label: '5K', typical: '20–40 min' },
   { id: '10k', label: '10K', typical: '40–80 min' },
@@ -114,17 +151,44 @@ const btnSecondary: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+// ── Volume graph ──────────────────────────────────────────────────────────────
+
+function VolumeGraph({ points, active }: { points: string; active: boolean }) {
+  return (
+    <svg viewBox="0 0 100 40" style={{ width: '100%', height: 36, display: 'block', marginTop: 8 }}>
+      <polyline
+        points={points}
+        fill="none"
+        stroke={active ? 'var(--accent)' : 'var(--border)'}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 // ── Step components ───────────────────────────────────────────────────────────
 
 function Step1({
   targetDistance,
   setTargetDistance,
+  raceTerrain,
+  setRaceTerrain,
+  trainingTerrain,
+  setTrainingTerrain,
   onNext,
 }: {
   targetDistance: string
   setTargetDistance: (v: string) => void
+  raceTerrain: string
+  setRaceTerrain: (v: string) => void
+  trainingTerrain: string
+  setTrainingTerrain: (v: string) => void
   onNext: () => void
 }) {
+  const canProceed = !!targetDistance && !!raceTerrain && !!trainingTerrain
+
   return (
     <div>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>What's your goal distance?</h2>
@@ -139,7 +203,38 @@ function Step1({
           </div>
         ))}
       </div>
-      <button style={btnPrimary} disabled={!targetDistance} onClick={onNext}>
+
+      <div style={{ marginBottom: 28 }}>
+        <label style={{ display: 'block', fontSize: 13, marginBottom: 10 }}>
+          Race terrain
+          <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>— what's the course like?</span>
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          {TERRAINS.map(t => (
+            <div key={t.id} style={tile(raceTerrain === t.id)} onClick={() => setRaceTerrain(t.id)}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{t.label}</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3 }}>{t.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <label style={{ display: 'block', fontSize: 13, marginBottom: 10 }}>
+          Training terrain
+          <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>— where do you do most of your runs?</span>
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          {TERRAINS.map(t => (
+            <div key={t.id} style={tile(trainingTerrain === t.id)} onClick={() => setTrainingTerrain(t.id)}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{t.label}</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3 }}>{t.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <button style={btnPrimary} disabled={!canProceed} onClick={onNext}>
         Next →
       </button>
     </div>
@@ -305,6 +400,14 @@ function Step3({
   setPreferredDays,
   longRunDay,
   setLongRunDay,
+  volumePreference,
+  setVolumePreference,
+  effortPreference,
+  setEffortPreference,
+  isPrimarySport,
+  setIsPrimarySport,
+  preferencesUserSet,
+  onPreferenceChange,
   onNext,
   onBack,
 }: {
@@ -315,9 +418,19 @@ function Step3({
   setPreferredDays: (v: string[]) => void
   longRunDay: string
   setLongRunDay: (v: string) => void
+  volumePreference: string
+  setVolumePreference: (v: string) => void
+  effortPreference: string
+  setEffortPreference: (v: string) => void
+  isPrimarySport: boolean
+  setIsPrimarySport: (v: boolean) => void
+  preferencesUserSet: boolean
+  onPreferenceChange: () => void
   onNext: () => void
   onBack: () => void
 }) {
+  const [prefsExpanded, setPrefsExpanded] = useState(false)
+
   const toggleDay = (day: string) => {
     if (preferredDays.includes(day)) {
       setPreferredDays(preferredDays.filter(d => d !== day))
@@ -326,6 +439,10 @@ function Step3({
       setPreferredDays([...preferredDays, day])
     }
   }
+
+  const handleVolumeChange = (v: string) => { setVolumePreference(v); onPreferenceChange() }
+  const handleEffortChange = (v: string) => { setEffortPreference(v); onPreferenceChange() }
+  const handlePrimaryChange = (v: boolean) => { setIsPrimarySport(v); onPreferenceChange() }
 
   const canProceed = preferredDays.length > 0 && longRunDay !== ''
 
@@ -353,6 +470,7 @@ function Step3({
         </div>
         <p style={{ fontSize: 13, color: 'var(--accent)', marginTop: 8 }}>
           We suggest starting with <strong>{suggestedRunsPerWeek} runs/week</strong>
+          <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>(conservative start to avoid injury)</span>
         </p>
       </div>
 
@@ -385,6 +503,118 @@ function Step3({
           </div>
         </div>
       )}
+
+      {/* Training preferences — collapsible */}
+      <div style={{
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        marginBottom: 28,
+        overflow: 'hidden',
+      }}>
+        <button
+          onClick={() => setPrefsExpanded(p => !p)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px 16px',
+            background: 'var(--surface)',
+            border: 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Training preferences</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+              {preferencesUserSet ? '' : 'Auto · '}
+              Volume: {capitalise(volumePreference)} · Effort: {capitalise(effortPreference)}
+              {isPrimarySport && ' · Primary sport'}
+            </span>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{prefsExpanded ? '↑ Hide' : '↓ Customize'}</span>
+        </button>
+
+        {prefsExpanded && (
+          <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
+            {!preferencesUserSet && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+                Set automatically based on your ability level. Change anything below to override.
+              </p>
+            )}
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+                Training volume
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {VOLUME_OPTIONS.map(v => (
+                  <div
+                    key={v.id}
+                    style={tile(volumePreference === v.id)}
+                    onClick={() => handleVolumeChange(v.id)}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{v.label}</div>
+                    <VolumeGraph points={v.points} active={volumePreference === v.id} />
+                    <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>{v.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+                Training effort
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {EFFORT_OPTIONS.map(e => (
+                  <div
+                    key={e.id}
+                    style={tile(effortPreference === e.id)}
+                    onClick={() => handleEffortChange(e.id)}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{e.label}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>{e.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 12,
+              padding: '12px 14px',
+              background: isPrimarySport ? 'rgba(99,102,241,0.08)' : 'var(--surface)',
+              border: `1px solid ${isPrimarySport ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: 8,
+              cursor: 'pointer',
+            }} onClick={() => handlePrimaryChange(!isPrimarySport)}>
+              <div style={{
+                width: 18,
+                height: 18,
+                borderRadius: 4,
+                border: `2px solid ${isPrimarySport ? 'var(--accent)' : 'var(--border)'}`,
+                background: isPrimarySport ? 'var(--accent)' : 'transparent',
+                flexShrink: 0,
+                marginTop: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {isPrimarySport && <span style={{ color: 'white', fontSize: 11, fontWeight: 700 }}>✓</span>}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Running is my primary sport</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  When set, your running schedule takes precedence — other modules plan around it, not the other way around.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <button style={btnSecondary} onClick={onBack}>← Back</button>
@@ -533,6 +763,12 @@ function Step5({
     raceDate: string
     hasRace: boolean | null
     planWeeks: number
+    raceTerrain: string
+    trainingTerrain: string
+    volumePreference: string
+    effortPreference: string
+    isPrimarySport: boolean
+    preferencesUserSet: boolean
   }
   onEdit: () => void
   onConfirm: () => void
@@ -551,6 +787,11 @@ function Step5({
     config.hasRace
       ? ['Race', `${new Date(config.raceDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}  (${weeks} weeks)`]
       : ['Duration', `${config.planWeeks} weeks`],
+    ['Race terrain', capitalise(config.raceTerrain) || '—'],
+    ['Training terrain', capitalise(config.trainingTerrain) || '—'],
+    ['Volume', `${capitalise(config.volumePreference)}${config.preferencesUserSet ? '' : ' (auto)'}`],
+    ['Effort', `${capitalise(config.effortPreference)}${config.preferencesUserSet ? '' : ' (auto)'}`],
+    ...(config.isPrimarySport ? [['Primary sport', 'Yes — plan takes precedence'] as [string, string]] : []),
   ]
 
   return (
@@ -600,6 +841,8 @@ export default function RunningSetup() {
 
   // Step 1
   const [targetDistance, setTargetDistance] = useState('')
+  const [raceTerrain, setRaceTerrain] = useState('')
+  const [trainingTerrain, setTrainingTerrain] = useState('')
 
   // Step 2
   const [hasPreviousRace, setHasPreviousRace] = useState<boolean | null>(null)
@@ -616,6 +859,10 @@ export default function RunningSetup() {
   const [suggestedRunsPerWeek, setSuggestedRunsPerWeek] = useState(3)
   const [preferredDays, setPreferredDays] = useState<string[]>([])
   const [longRunDay, setLongRunDay] = useState('')
+  const [volumePreference, setVolumePreference] = useState('gradual')
+  const [effortPreference, setEffortPreference] = useState('comfortable')
+  const [isPrimarySport, setIsPrimarySport] = useState(false)
+  const [preferencesUserSet, setPreferencesUserSet] = useState(false)
 
   // Step 4
   const [hasRace, setHasRace] = useState<boolean | null>(null)
@@ -630,6 +877,8 @@ export default function RunningSetup() {
     getRunningConfig().then(({ config }) => {
       if (config) {
         setTargetDistance(config.target_distance)
+        if (config.race_terrain) setRaceTerrain(config.race_terrain)
+        if (config.training_terrain) setTrainingTerrain(config.training_terrain)
         setHasPreviousRace(config.has_previous_race)
         if (config.best_time_seconds) setBestTimeSeconds(config.best_time_seconds)
         if (config.effort_score) setEffortScore(config.effort_score)
@@ -642,6 +891,10 @@ export default function RunningSetup() {
         if (config.race_date) { setHasRace(true); setRaceDate(config.race_date) }
         if (config.plan_weeks) setPlanWeeks(config.plan_weeks)
         if (config.plan_start_date) setPlanStartDate(config.plan_start_date)
+        if (config.volume_preference) setVolumePreference(config.volume_preference)
+        if (config.effort_preference) setEffortPreference(config.effort_preference)
+        setIsPrimarySport(config.is_primary_sport ?? false)
+        setPreferencesUserSet(config.preferences_user_set ?? false)
       }
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -662,6 +915,21 @@ export default function RunningSetup() {
     }, 600)
     return () => clearTimeout(t)
   }, [targetDistance, bestTimeSeconds, effortScore, hasPreviousRace])
+
+  // Auto-derive volume/effort preferences from ability level (only when not user-set)
+  useEffect(() => {
+    if (preferencesUserSet) return
+    if (aerobicBasePriority) { setVolumePreference('gradual'); setEffortPreference('comfortable'); return }
+    const defaults: Record<string, { vol: string; eff: string }> = {
+      beginner:     { vol: 'gradual',      eff: 'comfortable' },
+      intermediate: { vol: 'steady',       eff: 'balanced'    },
+      advanced:     { vol: 'progressive',  eff: 'challenging' },
+      elite:        { vol: 'progressive',  eff: 'challenging' },
+    }
+    const d = defaults[abilityLevel] ?? defaults.intermediate
+    setVolumePreference(d.vol)
+    setEffortPreference(d.eff)
+  }, [abilityLevel, aerobicBasePriority, preferencesUserSet])
 
   // Update suggested runs when recentRuns4Weeks changes
   useEffect(() => {
@@ -703,6 +971,12 @@ export default function RunningSetup() {
         plan_start_date: effectiveStartDate,
         race_date: effectiveRaceDate,
         plan_weeks: effectivePlanWeeks,
+        race_terrain: raceTerrain || null,
+        training_terrain: trainingTerrain || null,
+        volume_preference: volumePreference,
+        effort_preference: effortPreference,
+        is_primary_sport: isPrimarySport,
+        preferences_user_set: preferencesUserSet,
       })
       navigate('/running')
     } catch (e: any) {
@@ -736,6 +1010,10 @@ export default function RunningSetup() {
         <Step1
           targetDistance={targetDistance}
           setTargetDistance={setTargetDistance}
+          raceTerrain={raceTerrain}
+          setRaceTerrain={setRaceTerrain}
+          trainingTerrain={trainingTerrain}
+          setTrainingTerrain={setTrainingTerrain}
           onNext={() => setStep(2)}
         />
       )}
@@ -765,6 +1043,14 @@ export default function RunningSetup() {
           setPreferredDays={setPreferredDays}
           longRunDay={longRunDay}
           setLongRunDay={setLongRunDay}
+          volumePreference={volumePreference}
+          setVolumePreference={setVolumePreference}
+          effortPreference={effortPreference}
+          setEffortPreference={setEffortPreference}
+          isPrimarySport={isPrimarySport}
+          setIsPrimarySport={setIsPrimarySport}
+          preferencesUserSet={preferencesUserSet}
+          onPreferenceChange={() => setPreferencesUserSet(true)}
           onNext={() => setStep(4)}
           onBack={() => setStep(2)}
         />
@@ -796,6 +1082,12 @@ export default function RunningSetup() {
             raceDate,
             hasRace,
             planWeeks,
+            raceTerrain,
+            trainingTerrain,
+            volumePreference,
+            effortPreference,
+            isPrimarySport,
+            preferencesUserSet,
           }}
           onEdit={() => setStep(4)}
           onConfirm={handleConfirm}

@@ -52,6 +52,38 @@ def _running_config_context(config: dict, today: date) -> str:
             "Do not add tempo or interval work until week 4+."
         )
 
+    race_terrain = config.get("race_terrain") or "unknown"
+    training_terrain = config.get("training_terrain") or "unknown"
+
+    terrain_note = ""
+    if race_terrain != "unknown" and training_terrain != "unknown" and race_terrain != training_terrain:
+        terrain_note = (
+            f"\nNote: Athlete trains on {training_terrain} terrain but races on {race_terrain} terrain. "
+            "Include terrain-specific preparation (e.g. hill sessions or downhill running) as race approaches."
+        )
+
+    volume_pref = config.get("volume_preference") or "steady"
+    effort_pref = config.get("effort_preference") or "balanced"
+
+    volume_desc = {
+        "gradual": "conservative ~5%/week progression, lots of easy running, prioritise consistency over intensity",
+        "steady": "standard ~8-10%/week progression, balanced build",
+        "progressive": "block periodization — hard build weeks followed by planned recovery weeks, aggressive progression",
+    }
+    effort_desc = {
+        "comfortable": "70-75% easy running, minimal intensity work, aerobic base focus",
+        "balanced": "80/20 easy/hard, standard polarized training",
+        "challenging": "push aerobic capacity with more threshold and interval sessions",
+    }
+
+    primary_note = ""
+    if config.get("is_primary_sport"):
+        primary_note = "\nPrimary sport: YES — this is the athlete's primary discipline. Schedule takes precedence over all other modules."
+
+    user_set_note = ""
+    if config.get("preferences_user_set"):
+        user_set_note = "\nNote: athlete explicitly set volume and effort preferences — respect these even if cross-module signals suggest otherwise."
+
     lines = [
         f"Running goal: {config.get('target_distance', 'not set')}",
         f"Ability level: {config.get('ability_level', 'unknown')}",
@@ -60,8 +92,12 @@ def _running_config_context(config: dict, today: date) -> str:
         f"Preferred days: {', '.join(config.get('preferred_days', []))}",
         f"Long run day: {config.get('long_run_day', 'sunday')}",
         f"Weeks to race: {weeks_to_race or 'unknown'}",
+        f"Race terrain: {race_terrain}",
+        f"Training terrain: {training_terrain}",
+        f"Volume preference: {volume_pref} — {volume_desc.get(volume_pref, '')}",
+        f"Effort preference: {effort_pref} — {effort_desc.get(effort_pref, '')}",
     ]
-    return "\n".join(lines) + aerobic_note
+    return "\n".join(lines) + aerobic_note + terrain_note + primary_note + user_set_note
 
 
 def generate_running_plan(

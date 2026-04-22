@@ -117,6 +117,12 @@ export interface RunningConfig {
   plan_start_date: string
   race_date: string | null
   plan_weeks: number | null
+  race_terrain: string | null
+  training_terrain: string | null
+  volume_preference: string | null
+  effort_preference: string | null
+  is_primary_sport: boolean
+  preferences_user_set: boolean
   onboarded_at: string | null
 }
 
@@ -139,6 +145,12 @@ export interface RunningConfigRequest {
   plan_start_date: string
   race_date?: string | null
   plan_weeks?: number | null
+  race_terrain?: string | null
+  training_terrain?: string | null
+  volume_preference?: string | null
+  effort_preference?: string | null
+  is_primary_sport?: boolean
+  preferences_user_set?: boolean
 }
 
 export interface ClassifyRequest {

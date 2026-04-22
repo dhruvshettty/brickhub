@@ -7,7 +7,7 @@ Cross-module AI coaching: each discipline adjusts based on what's happening in t
 ## Prerequisites
 
 - An [Anthropic API key](https://console.anthropic.com) (for AI plan generation + coach chat)
-- Node 18+ and Python 3.13 (`brew install python@3.13`) — for native setup
+- Node 18+ and Python 3.13 — check with `python3 --version`, install with `brew install python@3.13`
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — for Docker setup (optional)
 
 ## Setup (no Docker required)
@@ -20,7 +20,7 @@ cp .env.example .env
 make dev-native
 ```
 
-Open **http://localhost:3000**. Go to Settings and configure your race goal.
+Open **http://localhost:3000**. Click **Running** in the sidebar and follow the setup wizard to generate your first plan (~5 min).
 
 API docs: **http://localhost:8000/docs**
 
@@ -44,6 +44,8 @@ make dev
 | `make logs` | Stream Docker logs |
 | `make db-upgrade` | Run pending migrations (Docker) |
 | `make db-reset` | Wipe database and restart (Docker) |
+| `make reset-all` | Clear all training data for a clean state (keeps profile) |
+| `make reset-module m=running` | Reset one module's onboarding and cached plan |
 
 ## Troubleshooting
 

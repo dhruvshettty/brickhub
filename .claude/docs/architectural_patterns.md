@@ -98,6 +98,22 @@ Pydantic models in `backend/app/api/v1/*.py` mirror these types. FastAPI auto-ge
 
 ---
 
+## Training Preference Precedence
+
+Each module config stores `volume_preference`, `effort_preference`, `is_primary_sport`, and `preferences_user_set`.
+
+**Auto-derivation:** When a user completes onboarding, preferences are computed from ability level (beginner → gradual/comfortable, intermediate → steady/balanced, advanced/elite → progressive/challenging). `preferences_user_set` is `false`.
+
+**User override:** If the user explicitly changes a preference in the wizard, `preferences_user_set` is set to `true`. The plan generator injects a note into the Claude prompt: *"athlete explicitly set preferences — respect these even if cross-module signals suggest otherwise."*
+
+**Primary sport:** When `is_primary_sport` is `true`, the Claude prompt is told this module's schedule takes precedence. When building other module plans (M2 biking, M3 etc.), check if any module has `is_primary_sport = true` and plan around that module's schedule rather than competing with it.
+
+**Rule:** Never auto-update preferences once `preferences_user_set = true`. Only the user can change them back.
+
+See `backend/app/services/plan_generator.py` (`_running_config_context`) for how these are injected into prompts.
+
+---
+
 ## Profile Singleton
 
 There is no multi-user support. `_get_or_create_profile(db)` (defined in `backend/app/api/v1/settings.py`, imported by other routers) always returns the single `Profile` row, creating it if missing.
