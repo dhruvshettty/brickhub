@@ -14,7 +14,7 @@ class ModuleType(str, enum.Enum):
 
 class WorkoutSource(str, enum.Enum):
     manual = "manual"
-    suunto = "suunto"
+    imported = "imported"  # any third-party sync (Strava, Garmin, etc.)
 
 
 class WorkoutLog(Base):

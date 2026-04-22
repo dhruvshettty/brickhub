@@ -24,9 +24,8 @@ services:
     environment:
       DATABASE_URL: postgresql://brickhub:${POSTGRES_PASSWORD}@db:5432/brickhub
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      SUUNTO_CLIENT_ID: ${SUUNTO_CLIENT_ID:-}
-      SUUNTO_CLIENT_SECRET: ${SUUNTO_CLIENT_SECRET:-}
-      SUUNTO_REDIRECT_URI: ${SUUNTO_REDIRECT_URI:-}
+      STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
+      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
       SECRET_KEY: ${SECRET_KEY:-dev-secret-not-for-production}
     depends_on:
       db:

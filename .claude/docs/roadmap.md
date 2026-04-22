@@ -83,14 +83,14 @@ Full biking experience, at feature parity with running. Biking and running plans
 
 Pull real workout data from the watch instead of manual logging. Improve training effort model with actual data.
 
-### Suunto Watch Sync
-- [ ] OAuth flow (`apizone.suunto.com`) + credentials in `.env`
-- [ ] Webhook receiver — auto-ingest after every watch sync
-- [ ] Map Suunto activity types → `WorkoutLog` entries
-- [ ] HRV + sleep fields on `WorkoutLog`
+### Strava Sync
+- [ ] OAuth flow (`strava.com/settings/api`) + credentials in `.env`
+- [ ] Webhook receiver — auto-ingest after every Strava upload
+- [ ] Map Strava activity types → `WorkoutLog` entries (`WorkoutSource.imported`)
+- [ ] HRV + sleep fields on `WorkoutLog` (from Strava or future provider)
 
 ### Training Effort Improvements (builds on M1)
-- [ ] Recovery score from HRV + sleep (Suunto data)
+- [ ] Recovery score from HRV + sleep (Strava or provider data)
 - [ ] Actual vs planned load comparison
 - [ ] Long-term training load trend (CTL / ATL / TSB model)
 - [ ] Readiness score on dashboard (should I train hard today?)

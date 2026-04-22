@@ -69,6 +69,10 @@ backend/     FastAPI (Python 3.11+), hot reload on port 8000
              └── Claude API for plan generation + coach
 ```
 
-## Suunto Watch Sync
+## Contributing
 
-Register at [apizone.suunto.com](https://apizone.suunto.com), create an app, and add the credentials to your `.env`. The dashboard will then auto-sync after every watch sync.
+Issues, ideas, and pull requests welcome: [github.com/dhruvshettty/brickhub](https://github.com/dhruvshettty/brickhub)
+
+## Strava Sync (Milestone 3)
+
+Register an app at [strava.com/settings/api](https://www.strava.com/settings/api) and add `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` to your `.env`. Once implemented, activities will sync automatically after every upload.

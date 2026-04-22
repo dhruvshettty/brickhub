@@ -65,9 +65,9 @@ export default function App() {
           <Route path="/running" element={<Running />} />
           <Route path="/running/setup" element={<RunningSetup />} />
           <Route path="/biking" element={<ComingSoon module="Biking" milestone="M2" />} />
-          <Route path="/swimming" element={<ComingSoon module="Swimming" milestone="M2" />} />
-          <Route path="/gym" element={<ComingSoon module="Gym" milestone="M3" />} />
-          <Route path="/food" element={<ComingSoon module="Food" milestone="M2" />} />
+          <Route path="/food" element={<ComingSoon module="Food" milestone="M4" />} />
+          <Route path="/gym" element={<ComingSoon module="Gym" milestone="M5" />} />
+          <Route path="/swimming" element={<ComingSoon module="Swimming" milestone="M6" />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

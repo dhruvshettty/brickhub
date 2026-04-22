@@ -18,9 +18,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = "sk-ant-..."
     secret_key: str = "dev-secret-not-for-production"
 
-    suunto_client_id: str = ""
-    suunto_client_secret: str = ""
-    suunto_redirect_uri: str = ""
+    strava_client_id: str = ""
+    strava_client_secret: str = ""
 
     class Config:
         env_file = _find_env_file()

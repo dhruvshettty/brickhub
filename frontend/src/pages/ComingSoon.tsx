@@ -16,7 +16,15 @@ export default function ComingSoon({ module, milestone }: Props) {
     }}>
       <div style={{ fontSize: 48 }}>🔧</div>
       <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>{module}</h2>
-      <p style={{ fontSize: 14 }}>Coming in {milestone}. Building running first to nail the plan logic.</p>
+      <p style={{ fontSize: 14 }}>Coming in {milestone}.</p>
+      <a
+        href="https://github.com/dhruvshettty/brickhub"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ fontSize: 13, color: 'var(--accent)' }}
+      >
+        Follow progress or contribute on GitHub →
+      </a>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 Personal triathlon training dashboard. Five modules (running, biking, swimming, gym, food) share cross-module intelligence: gym soreness affects swim plan, long ride tomorrow affects dinner suggestion. Claude generates all plans and coaches in real time.
 
-Single-user, self-hosted. M1 (running) is complete. M2 (biking, swimming, food, Suunto sync) and M3 (gym, recovery) are next.
+Single-user, self-hosted. M1 (running) is complete. M2 (biking) and M3 (training data integration via Strava) are next.
 
 ## Tech Stack
 
