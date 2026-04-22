@@ -44,13 +44,15 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     # Race countdown from running module config
     race_countdown = None
+    running_goal = None
     running_config = db.query(ModuleConfig).filter(
         ModuleConfig.profile_id == profile.id,
         ModuleConfig.module == "running",
     ).first()
     if running_config:
-        race_date_str = running_config.config_json.get("race_date")
         target_distance = running_config.config_json.get("target_distance")
+        running_goal = target_distance
+        race_date_str = running_config.config_json.get("race_date")
         if race_date_str:
             try:
                 race_date = date.fromisoformat(race_date_str)
@@ -64,6 +66,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         "week_start": week_start.isoformat(),
         "profile": {"name": profile.name},
         "race_countdown": race_countdown,
+        "running_goal": running_goal,
         "today_run": today_run,
         "module_progress": {
             module: {

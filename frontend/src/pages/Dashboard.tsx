@@ -60,7 +60,7 @@ export default function Dashboard() {
             {new Date(data.today + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        {data.race_countdown && (
+        {data.race_countdown ? (
           <div style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
@@ -75,18 +75,19 @@ export default function Dashboard() {
               {data.race_countdown.distance} · {data.race_countdown.date}
             </div>
           </div>
-        )}
-        {!data.race_countdown && (
-          <Link to="/settings" style={{
+        ) : data.running_goal && (
+          <div style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
             padding: '10px 16px',
-            color: 'var(--text-muted)',
-            fontSize: 13,
+            textAlign: 'right',
           }}>
-            Set race goal →
-          </Link>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Training for</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize' }}>
+              {data.running_goal.replace(/_/g, ' ')}
+            </div>
+          </div>
         )}
       </div>
 

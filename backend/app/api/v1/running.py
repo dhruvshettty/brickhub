@@ -47,6 +47,7 @@ class RunningConfigRequest(BaseModel):
     ability_level: str
     aerobic_base_priority: bool
     recent_runs_4_weeks: int
+    current_weekly_km: int | None = None
     suggested_runs_per_week: int
     preferred_days: list[str]
     long_run_day: str

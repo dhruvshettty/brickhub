@@ -88,6 +88,7 @@ def _running_config_context(config: dict, today: date) -> str:
         f"Running goal: {config.get('target_distance', 'not set')}",
         f"Ability level: {config.get('ability_level', 'unknown')}",
         f"Aerobic base priority: {config.get('aerobic_base_priority', False)}",
+        f"Average weekly mileage (last 4 weeks): {config.get('current_weekly_km') or 'unknown'} km",
         f"Runs per week: {config.get('suggested_runs_per_week', 3)}",
         f"Preferred days: {', '.join(config.get('preferred_days', []))}",
         f"Long run day: {config.get('long_run_day', 'sunday')}",

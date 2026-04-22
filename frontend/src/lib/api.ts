@@ -54,6 +54,7 @@ export interface DashboardSummary {
   today: string
   week_start: string
   profile: { name: string | null }
+  running_goal: string | null
   race_countdown: { days: number; distance: string; date: string } | null
   today_run: PlanDay | null
   module_progress: Record<string, { completed: number; total: number }>
@@ -111,6 +112,7 @@ export interface RunningConfig {
   ability_level: string
   aerobic_base_priority: boolean
   recent_runs_4_weeks: number
+  current_weekly_km: number | null
   suggested_runs_per_week: number
   preferred_days: string[]
   long_run_day: string
@@ -139,6 +141,7 @@ export interface RunningConfigRequest {
   ability_level: string
   aerobic_base_priority: boolean
   recent_runs_4_weeks: number
+  current_weekly_km?: number | null
   suggested_runs_per_week: number
   preferred_days: string[]
   long_run_day: string

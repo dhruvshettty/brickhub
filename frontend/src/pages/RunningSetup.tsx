@@ -311,6 +311,7 @@ function Step2({
                     min={0}
                     max={max}
                     value={val}
+                    onFocus={e => e.target.select()}
                     onChange={e => onChange(Math.min(max, Math.max(0, parseInt(e.target.value) || 0)))}
                     style={{
                       width: 60,
@@ -395,6 +396,8 @@ function Step2({
 function Step3({
   recentRuns4Weeks,
   setRecentRuns4Weeks,
+  currentWeeklyKm,
+  setCurrentWeeklyKm,
   suggestedRunsPerWeek,
   preferredDays,
   setPreferredDays,
@@ -413,6 +416,8 @@ function Step3({
 }: {
   recentRuns4Weeks: number
   setRecentRuns4Weeks: (v: number) => void
+  currentWeeklyKm: number
+  setCurrentWeeklyKm: (v: number) => void
   suggestedRunsPerWeek: number
   preferredDays: string[]
   setPreferredDays: (v: string[]) => void
@@ -444,7 +449,8 @@ function Step3({
   const handleEffortChange = (v: string) => { setEffortPreference(v); onPreferenceChange() }
   const handlePrimaryChange = (v: boolean) => { setIsPrimarySport(v); onPreferenceChange() }
 
-  const canProceed = preferredDays.length > 0 && longRunDay !== ''
+  const kmRequired = recentRuns4Weeks > 0 && currentWeeklyKm === 0
+  const canProceed = preferredDays.length > 0 && longRunDay !== '' && !kmRequired
 
   return (
     <div>
@@ -472,6 +478,31 @@ function Step3({
           We suggest starting with <strong>{suggestedRunsPerWeek} runs/week</strong>
           <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>(conservative start to avoid injury)</span>
         </p>
+      </div>
+
+      <div style={{ marginBottom: 28 }}>
+        <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+          Average km/week (last 4 weeks): <strong style={{ color: 'var(--text)' }}>
+            {currentWeeklyKm === 0 ? 'not running' : `~${currentWeeklyKm} km`}
+          </strong>
+        </label>
+        <input
+          type="range"
+          min={0}
+          max={80}
+          step={5}
+          value={currentWeeklyKm}
+          onChange={e => setCurrentWeeklyKm(parseInt(e.target.value))}
+          style={{ width: '100%', accentColor: 'var(--accent)' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+          <span>0</span><span>80 km</span>
+        </div>
+        {currentWeeklyKm > 0 && (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+            We'll build your plan volume from here — no more than 10% increase per week.
+          </p>
+        )}
       </div>
 
       <div style={{ marginBottom: 20 }}>
@@ -608,7 +639,7 @@ function Step3({
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Running is my primary sport</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  When set, your running schedule takes precedence — other modules plan around it, not the other way around.
+                  When set, your running schedule takes precedence — other sports plan around it, not the other way around.
                 </div>
               </div>
             </div>
@@ -621,6 +652,9 @@ function Step3({
         <button style={btnPrimary} disabled={!canProceed} onClick={onNext}>Next →</button>
         {!canProceed && preferredDays.length > 0 && longRunDay === '' && (
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Select a long run day to continue</span>
+        )}
+        {kmRequired && (
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Enter your average weekly km to continue</span>
         )}
       </div>
     </div>
@@ -855,7 +889,8 @@ export default function RunningSetup() {
   const [aerobicBasePriority, setAerobicBasePriority] = useState(false)
 
   // Step 3
-  const [recentRuns4Weeks, setRecentRuns4Weeks] = useState(12)
+  const [recentRuns4Weeks, setRecentRuns4Weeks] = useState(0)
+  const [currentWeeklyKm, setCurrentWeeklyKm] = useState(0)
   const [suggestedRunsPerWeek, setSuggestedRunsPerWeek] = useState(3)
   const [preferredDays, setPreferredDays] = useState<string[]>([])
   const [longRunDay, setLongRunDay] = useState('')
@@ -885,6 +920,7 @@ export default function RunningSetup() {
         setAbilityLevel(config.ability_level)
         setAerobicBasePriority(config.aerobic_base_priority)
         setRecentRuns4Weeks(config.recent_runs_4_weeks)
+        if (config.current_weekly_km != null) setCurrentWeeklyKm(config.current_weekly_km)
         setSuggestedRunsPerWeek(config.suggested_runs_per_week)
         setPreferredDays(config.preferred_days)
         setLongRunDay(config.long_run_day)
@@ -965,6 +1001,7 @@ export default function RunningSetup() {
         ability_level: abilityLevel,
         aerobic_base_priority: aerobicBasePriority,
         recent_runs_4_weeks: hasPreviousRace ? recentRuns4Weeks : recentRunsNoRace * 4,
+        current_weekly_km: currentWeeklyKm || null,
         suggested_runs_per_week: suggestedRunsPerWeek,
         preferred_days: preferredDays,
         long_run_day: longRunDay,
@@ -991,7 +1028,7 @@ export default function RunningSetup() {
   const progressPct = ((step - 1) / 4) * 100
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Running Setup</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Step {step} of 5</p>
@@ -1038,6 +1075,8 @@ export default function RunningSetup() {
         <Step3
           recentRuns4Weeks={recentRuns4Weeks}
           setRecentRuns4Weeks={setRecentRuns4Weeks}
+          currentWeeklyKm={currentWeeklyKm}
+          setCurrentWeeklyKm={setCurrentWeeklyKm}
           suggestedRunsPerWeek={suggestedRunsPerWeek}
           preferredDays={preferredDays}
           setPreferredDays={setPreferredDays}
