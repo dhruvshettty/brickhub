@@ -1,4 +1,4 @@
-.PHONY: dev dev-native build down logs db-upgrade db-reset reset stop-native
+.PHONY: dev dev-native build down logs db-upgrade db-reset reset stop-native reset-module reset-all
 
 # ── Docker targets (requires Docker Desktop) ────────────────────────────────
 
@@ -60,6 +60,15 @@ dev-native: $(VENV)/bin/activate
 	@echo "  App      → http://localhost:3000"
 	@echo ""
 	@cd frontend && npm install --silent && npm run dev
+
+reset-all:
+	@sqlite3 backend/brickhub.db "DELETE FROM module_configs; DELETE FROM weekly_plans; DELETE FROM workout_logs; DELETE FROM meal_logs; DELETE FROM coach_messages;"
+	@echo "[brickhub] Full reset — all training data cleared. Profile kept."
+
+reset-module:
+	@test -n "$(m)" || (echo "Usage: make reset-module m=running" && exit 1)
+	@sqlite3 backend/brickhub.db "DELETE FROM module_configs WHERE module='$(m)'; DELETE FROM weekly_plans WHERE module='$(m)';"
+	@echo "[brickhub] Reset '$(m)' onboarding and cached plan."
 
 stop-native:
 	@pkill -f "uvicorn app.main:app" 2>/dev/null && echo "[brickhub] API server stopped." || echo "[brickhub] API server was not running."
