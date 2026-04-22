@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import anthropic
 from app.core.config import settings
 

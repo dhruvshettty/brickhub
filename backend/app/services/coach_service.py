@@ -4,6 +4,8 @@ Injects full cross-module context into every coach chat message
 so the coach knows about the athlete's entire training picture.
 """
 
+from __future__ import annotations
+
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session

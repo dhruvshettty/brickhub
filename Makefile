@@ -1,4 +1,6 @@
-.PHONY: dev build down logs db-upgrade db-reset reset
+.PHONY: dev dev-native build down logs db-upgrade db-reset reset stop-native
+
+# ── Docker targets (requires Docker Desktop) ────────────────────────────────
 
 dev:
 	docker compose up --build
@@ -24,3 +26,40 @@ db-reset:
 	docker compose up --build
 
 reset: db-reset
+
+# ── Native targets (no Docker required — uses SQLite) ────────────────────────
+#
+# Usage:
+#   make dev-native      → first-run setup + start everything
+#   make stop-native     → kill the background API server
+#
+# Requirements: python3.13 (brew install python@3.13), Node 18+ (already installed)
+
+VENV := backend/.venv
+PYTHON := $(VENV)/bin/python
+PIP := $(VENV)/bin/pip
+UVICORN := $(VENV)/bin/uvicorn
+ALEMBIC := $(VENV)/bin/alembic
+
+$(VENV)/bin/activate:
+	python3.13 -m venv $(VENV)
+	$(PIP) install --upgrade pip --quiet
+	$(PIP) install -r backend/requirements-native.txt --quiet
+	@echo "[brickhub] Python venv ready."
+
+dev-native: $(VENV)/bin/activate
+	@echo "[brickhub] Running database migrations (SQLite)..."
+	@cd backend && DATABASE_URL="sqlite:///./brickhub.db" $(shell pwd)/$(ALEMBIC) upgrade head
+	@echo "[brickhub] Starting API server on :8000 (log: backend/uvicorn.log)..."
+	@cd backend && DATABASE_URL="sqlite:///./brickhub.db" $(shell pwd)/$(UVICORN) app.main:app \
+		--host 0.0.0.0 --port 8000 --reload \
+		> uvicorn.log 2>&1 &
+	@echo "[brickhub] Starting frontend on :3000..."
+	@echo ""
+	@echo "  API docs → http://localhost:8000/docs"
+	@echo "  App      → http://localhost:3000"
+	@echo ""
+	@cd frontend && npm install --silent && npm run dev
+
+stop-native:
+	@pkill -f "uvicorn app.main:app" 2>/dev/null && echo "[brickhub] API server stopped." || echo "[brickhub] API server was not running."
