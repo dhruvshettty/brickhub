@@ -710,26 +710,48 @@ function Step4({
 
       {hasRace === true && (
         <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
-            Race date
-          </label>
-          <input
-            type="date"
-            value={raceDate}
-            min={new Date().toISOString().split('T')[0]}
-            onChange={e => setRaceDate(e.target.value)}
-            style={{
-              padding: '8px 12px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              color: 'var(--text)',
-              fontSize: 14,
-            }}
-          />
-          {raceWarning && (
-            <p style={{ fontSize: 13, color: 'var(--accent)', marginTop: 8 }}>{raceWarning}</p>
-          )}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+              Race date
+            </label>
+            <input
+              type="date"
+              value={raceDate}
+              min={new Date().toISOString().split('T')[0]}
+              onChange={e => setRaceDate(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                color: 'var(--text)',
+                fontSize: 14,
+              }}
+            />
+            {raceWarning && (
+              <p style={{ fontSize: 13, color: 'var(--accent)', marginTop: 8 }}>{raceWarning}</p>
+            )}
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+              Plan start date
+            </label>
+            <input
+              type="date"
+              value={planStartDate}
+              min={new Date().toISOString().split('T')[0]}
+              max={raceDate || undefined}
+              onChange={e => setPlanStartDate(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                color: 'var(--text)',
+                fontSize: 14,
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -983,9 +1005,7 @@ export default function RunningSetup() {
     try {
       const effectiveRaceDate = hasRace ? raceDate : null
       const effectivePlanWeeks = hasRace ? null : planWeeks
-
-      // Reuse planStartDate or next monday if race
-      const effectiveStartDate = hasRace ? nextMonday() : planStartDate
+      const effectiveStartDate = planStartDate
 
       await saveRunningConfig({
         target_distance: targetDistance,

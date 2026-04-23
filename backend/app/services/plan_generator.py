@@ -166,8 +166,16 @@ def generate_running_plan(
     ]
 
     running_config_str = ""
+    earliest_session_date = today  # never schedule sessions before today
     if running_config:
         running_config_str = f"\nRunning configuration:\n{_running_config_context(running_config, today)}\n"
+        plan_start_str = running_config.get("plan_start_date")
+        if plan_start_str:
+            try:
+                plan_start = date.fromisoformat(plan_start_str)
+                earliest_session_date = max(today, plan_start)
+            except ValueError:
+                pass
 
     user_prompt = f"""Cross-module signals (from all training this week):
 {signals_str}
@@ -175,6 +183,7 @@ def generate_running_plan(
 Recent running completion rate (last 4 weeks): {completion_rate:.0f}%
 
 Generate a 7-day running plan for the week starting {week_start.isoformat()}.
+IMPORTANT: Do not schedule any training sessions before {earliest_session_date.isoformat()}. Any days before this date must be type "rest" with distance_km 0, duration_minutes 0, and description "".
 Include rest days. Adjust intensity based on fatigue and cross-module signals.
 Schedule runs on the athlete's preferred days when possible.
 
