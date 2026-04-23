@@ -62,6 +62,7 @@ export interface DashboardSummary {
   module_progress: Record<string, { completed: number; total: number }>
   signals: CrossModuleSignals
   plans_available: string[]
+  running_onboarded: boolean
 }
 
 export interface CrossModuleSignals {
@@ -128,6 +129,8 @@ export interface RunningConfig {
   effort_preference: string | null
   is_primary_sport: boolean
   preferences_user_set: boolean
+  training_goal?: string | null
+  goal_target_time_seconds?: number | null
   onboarded_at: string | null
 }
 
@@ -157,6 +160,8 @@ export interface RunningConfigRequest {
   effort_preference?: string | null
   is_primary_sport?: boolean
   preferences_user_set?: boolean
+  training_goal?: string | null
+  goal_target_time_seconds?: number | null
 }
 
 export interface ClassifyRequest {

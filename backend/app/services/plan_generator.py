@@ -84,6 +84,21 @@ def _running_config_context(config: dict, today: date) -> str:
     if config.get("preferences_user_set"):
         user_set_note = "\nNote: athlete explicitly set volume and effort preferences — respect these even if cross-module signals suggest otherwise."
 
+    training_goal = config.get("training_goal")
+    goal_map = {
+        "finish": "complete the race (no time pressure)",
+        "beat_time": "beat a target finish time",
+        "fitness": "build base fitness (no race goal)",
+    }
+    training_goal_line = f"Training goal: {goal_map.get(training_goal, training_goal)}" if training_goal else None
+
+    goal_time_line = None
+    if training_goal == "beat_time" and config.get("goal_target_time_seconds"):
+        total = config["goal_target_time_seconds"]
+        h, rem = divmod(total, 3600)
+        m, s = divmod(rem, 60)
+        goal_time_line = f"Target finish time: {h}:{m:02d}:{s:02d}"
+
     lines = [
         f"Running goal: {config.get('target_distance', 'not set')}",
         f"Ability level: {config.get('ability_level', 'unknown')}",
@@ -98,6 +113,10 @@ def _running_config_context(config: dict, today: date) -> str:
         f"Volume preference: {volume_pref} — {volume_desc.get(volume_pref, '')}",
         f"Effort preference: {effort_pref} — {effort_desc.get(effort_pref, '')}",
     ]
+    if training_goal_line:
+        lines.append(training_goal_line)
+    if goal_time_line:
+        lines.append(goal_time_line)
     return "\n".join(lines) + aerobic_note + terrain_note + primary_note + user_set_note
 
 

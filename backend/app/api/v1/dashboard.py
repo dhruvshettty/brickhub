@@ -63,6 +63,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     return {
         "today": today.isoformat(),
+        "running_onboarded": running_config is not None,
         "week_start": week_start.isoformat(),
         "profile": {"name": profile.name},
         "race_countdown": race_countdown,

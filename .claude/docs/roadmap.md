@@ -31,13 +31,14 @@ Everything needed to nail the running experience end-to-end, plus a solid traini
 - [x] Ability badge + race countdown in header
 - [x] Edit plan settings button
 
-### Running — Onboarding Polish 🔲 To Do (from DX review)
-- [ ] Wizard Step 0: collect name, age, weight (optional), weekly training hours before distance selection
-- [ ] Wizard Step 1: add training goal tiles (just finish / beat a target time / build fitness) — target time input if chosen
-- [ ] Wizard Step 3: add weekly km slider ("how many km/week are you currently running?") — feed into Claude prompt
-- [ ] Wizard Step 3: default `recentRuns4Weeks` to 0 (not 12); show logic behind weekly suggestion
-- [ ] Wizard Step 5: add "What week 1 looks like" estimated breakdown (computed, no Claude call)
-- [ ] Dashboard: guided first-run banner when no modules set up; lock coach panel until setup complete
+### Running — Onboarding Polish ✅ Done
+- [x] Wizard Step 1: collect name, age, weight (optional), weekly training hours before distance selection
+- [x] Wizard Step 2: add training goal tiles (just finish / beat a target time / build fitness) — target time input if chosen; "Build fitness" skips race/timeline step; "Beat a target time" makes race date required
+- [x] Wizard Step 4: weekly km slider already existed; show logic behind weekly suggestion ("Based on X runs in the last 4 weeks")
+- [x] Wizard Step 4: `recentRuns4Weeks` defaults to 0 (already was)
+- [x] Wizard Step 6 (confirmation): "What week 1 looks like" computed day-by-day breakdown
+- [x] Dashboard: guided first-run banner when running not set up; coach panel locked until running onboarded
+- [x] `training_goal` + `goal_target_time_seconds` injected into Claude prompt for plan generation
 
 ### Running — Plan & UI Polish 🔲 To Do
 - [ ] Re-onboarding flow: editing config should offer to regenerate or keep current plan

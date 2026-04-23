@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   classifyRunningAbility,
   getRunningConfig,
+  getProfile,
+  updateProfile,
   saveRunningConfig,
   ClassifyResult,
   RunningConfig,
@@ -10,26 +12,29 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+const GOAL_OPTIONS = [
+  { id: 'finish', label: 'Just finish', desc: 'Complete the distance — time is not the priority.' },
+  { id: 'beat_time', label: 'Beat a target time', desc: 'I have a goal finish time in mind.' },
+  { id: 'fitness', label: 'Build fitness', desc: 'No race planned — just improving my running.' },
+]
+
 const VOLUME_OPTIONS = [
   {
     id: 'gradual',
     label: 'Gradual',
     desc: 'Slow, conservative build. Best for returning from a break or new to structured training.',
-    // points for a gentle almost-flat curve
     points: '0,34 17,33 33,31 50,29 67,27 83,25 100,23',
   },
   {
     id: 'steady',
     label: 'Steady',
     desc: 'Standard ~10%/week progression. The proven default for consistent improvement.',
-    // points for a smooth linear ramp
     points: '0,34 17,29 33,23 50,18 67,13 83,9 100,6',
   },
   {
     id: 'progressive',
     label: 'Progressive',
     desc: 'Block periodization — build hard, recover, build harder. For athletes who respond well to load.',
-    // points showing 3-up / 1-down pattern
     points: '0,34 17,27 33,20 50,26 67,16 83,22 100,10',
   },
 ]
@@ -96,6 +101,46 @@ function formatDuration(seconds: number): string {
 
 function capitalise(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ')
+}
+
+type Week1Day = { day: string; type: string; km: number }
+
+function computeWeek1Preview(
+  preferredDays: string[],
+  longRunDay: string,
+  suggestedRunsPerWeek: number,
+  currentWeeklyKm: number,
+  abilityLevel: string,
+  effortPreference: string,
+): Week1Day[] {
+  if (preferredDays.length === 0 || !longRunDay) return []
+
+  const count = Math.min(suggestedRunsPerWeek, preferredDays.length)
+  const selected: string[] = []
+  if (preferredDays.includes(longRunDay)) selected.push(longRunDay)
+  for (const d of preferredDays) {
+    if (selected.length >= count) break
+    if (!selected.includes(d)) selected.push(d)
+  }
+  // Sort by day of week order
+  const order = DAYS
+  selected.sort((a, b) => order.indexOf(a) - order.indexOf(b))
+
+  const baseKm = currentWeeklyKm > 0 ? currentWeeklyKm
+    : abilityLevel === 'advanced' || abilityLevel === 'elite' ? 40
+    : abilityLevel === 'intermediate' ? 25
+    : 15
+
+  const longRunKm = Math.round(baseKm * 0.35)
+  const otherCount = selected.length - 1
+  const easyKm = otherCount > 0 ? Math.round((baseKm - longRunKm) / otherCount) : 0
+  const easyLabel = effortPreference === 'challenging' ? 'Tempo run' : 'Easy run'
+
+  return selected.map(d => ({
+    day: DAY_LABELS[d],
+    type: d === longRunDay ? 'Long run' : easyLabel,
+    km: d === longRunDay ? longRunKm : easyKm,
+  }))
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -170,7 +215,128 @@ function VolumeGraph({ points, active }: { points: string; active: boolean }) {
 
 // ── Step components ───────────────────────────────────────────────────────────
 
+function Step0Profile({
+  name,
+  setName,
+  age,
+  setAge,
+  weightKg,
+  setWeightKg,
+  weeklyHours,
+  setWeeklyHours,
+  onNext,
+  saving,
+}: {
+  name: string
+  setName: (v: string) => void
+  age: number | ''
+  setAge: (v: number | '') => void
+  weightKg: number | ''
+  setWeightKg: (v: number | '') => void
+  weeklyHours: number
+  setWeeklyHours: (v: number) => void
+  onNext: () => void
+  saving: boolean
+}) {
+  const canProceed = name.trim().length > 0
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    color: 'var(--text)',
+    fontSize: 14,
+    boxSizing: 'border-box',
+  }
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Tell us about yourself</h2>
+      <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
+        Used to personalise your training plan.
+      </p>
+
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
+          Name <span style={{ color: 'var(--accent)' }}>*</span>
+        </label>
+        <input
+          type="text"
+          value={name}
+          placeholder="Your name"
+          onChange={e => setName(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
+            Age <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
+          </label>
+          <input
+            type="number"
+            value={age}
+            min={10}
+            max={100}
+            placeholder="—"
+            onChange={e => setAge(e.target.value === '' ? '' : parseInt(e.target.value) || '')}
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
+            Weight (kg) <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
+          </label>
+          <input
+            type="number"
+            value={weightKg}
+            min={30}
+            max={250}
+            step={0.5}
+            placeholder="—"
+            onChange={e => setWeightKg(e.target.value === '' ? '' : parseFloat(e.target.value) || '')}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 28 }}>
+        <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+          Weekly training hours available:{' '}
+          <strong style={{ color: 'var(--text)' }}>{weeklyHours}h</strong>
+        </label>
+        <input
+          type="range"
+          min={2}
+          max={20}
+          step={1}
+          value={weeklyHours}
+          onChange={e => setWeeklyHours(parseInt(e.target.value))}
+          style={{ width: '100%', accentColor: 'var(--accent)' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+          <span>2h</span><span>20h</span>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+          Across all sports — running, biking, gym. Used to keep your total load realistic.
+        </p>
+      </div>
+
+      <button style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }} disabled={!canProceed || saving} onClick={onNext}>
+        {saving ? 'Saving...' : 'Next →'}
+      </button>
+    </div>
+  )
+}
+
 function Step1({
+  trainingGoal,
+  setTrainingGoal,
+  goalTargetTimeSeconds,
+  setGoalTargetTimeSeconds,
   targetDistance,
   setTargetDistance,
   raceTerrain,
@@ -178,7 +344,12 @@ function Step1({
   trainingTerrain,
   setTrainingTerrain,
   onNext,
+  onBack,
 }: {
+  trainingGoal: string
+  setTrainingGoal: (v: string) => void
+  goalTargetTimeSeconds: number
+  setGoalTargetTimeSeconds: (v: number) => void
   targetDistance: string
   setTargetDistance: (v: string) => void
   raceTerrain: string
@@ -186,15 +357,76 @@ function Step1({
   trainingTerrain: string
   setTrainingTerrain: (v: string) => void
   onNext: () => void
+  onBack: () => void
 }) {
-  const canProceed = !!targetDistance && !!raceTerrain && !!trainingTerrain
+  const { h, m, s } = secondsToHMS(goalTargetTimeSeconds)
+  const goalTimeValid = trainingGoal !== 'beat_time' || goalTargetTimeSeconds > 0
+  const canProceed = !!trainingGoal && !!targetDistance && !!raceTerrain && !!trainingTerrain && goalTimeValid
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>What's your goal distance?</h2>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>What's your training goal?</h2>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
-        Choose the race or distance you're training for.
+        This shapes the whole plan — be honest with yourself.
       </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
+        {GOAL_OPTIONS.map(g => (
+          <div key={g.id} style={tile(trainingGoal === g.id)} onClick={() => setTrainingGoal(g.id)}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>{g.label}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>{g.desc}</div>
+          </div>
+        ))}
+      </div>
+
+      {trainingGoal === 'beat_time' && (
+        <div style={{ marginBottom: 28 }}>
+          <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+            Target finish time
+          </label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {[
+              { val: h, max: 9, label: 'h', onChange: (v: number) => setGoalTargetTimeSeconds(hmsToSeconds(v, m, s)) },
+              { val: m, max: 59, label: 'min', onChange: (v: number) => setGoalTargetTimeSeconds(hmsToSeconds(h, v, s)) },
+              { val: s, max: 59, label: 'sec', onChange: (v: number) => setGoalTargetTimeSeconds(hmsToSeconds(h, m, v)) },
+            ].map(({ val, max, label, onChange }) => (
+              <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <input
+                  type="number"
+                  min={0}
+                  max={max}
+                  value={val}
+                  onFocus={e => e.target.select()}
+                  onChange={e => onChange(Math.min(max, Math.max(0, parseInt(e.target.value) || 0)))}
+                  style={{
+                    width: 60,
+                    padding: '8px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    color: 'var(--text)',
+                    textAlign: 'center',
+                    fontSize: 18,
+                    fontWeight: 600,
+                  }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginBottom: 8 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+          {trainingGoal === 'fitness' ? 'Target distance' : 'Goal distance'}
+        </h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
+          {trainingGoal === 'fitness'
+            ? 'Choose the distance you want to be able to run comfortably.'
+            : "Choose the race or distance you're training for."}
+        </p>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
         {DISTANCES.map(d => (
           <div key={d.id} style={tile(targetDistance === d.id)} onClick={() => setTargetDistance(d.id)}>
@@ -234,9 +466,10 @@ function Step1({
         </div>
       </div>
 
-      <button style={btnPrimary} disabled={!canProceed} onClick={onNext}>
-        Next →
-      </button>
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button style={btnSecondary} onClick={onBack}>← Back</button>
+        <button style={btnPrimary} disabled={!canProceed} onClick={onNext}>Next →</button>
+      </div>
     </div>
   )
 }
@@ -346,7 +579,7 @@ function Step2({
               <strong style={{ color: 'var(--text)' }}>RPE {effortScore}</strong>
               {' — '}
               {[
-                '', // 0 unused
+                '',
                 'Very light — barely any effort, could do this all day',
                 'Light — easy breathing, full conversation possible',
                 'Moderate — comfortable, slightly elevated breathing',
@@ -448,6 +681,10 @@ function Step3({
   const kmRequired = recentRuns4Weeks > 0 && currentWeeklyKm === 0
   const canProceed = preferredDays.length > 0 && longRunDay !== '' && !kmRequired
 
+  const suggestionReason = recentRuns4Weeks === 0
+    ? 'No recent runs — starting fresh'
+    : `Based on ${recentRuns4Weeks} runs in the last 4 weeks`
+
   return (
     <div>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Training load & schedule</h2>
@@ -472,7 +709,9 @@ function Step3({
         </div>
         <p style={{ fontSize: 13, color: 'var(--accent)', marginTop: 8 }}>
           We suggest starting with <strong>{suggestedRunsPerWeek} runs/week</strong>
-          <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>(conservative start to avoid injury)</span>
+          <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
+            ({suggestionReason} — conservative start to avoid injury)
+          </span>
         </p>
       </div>
 
@@ -658,6 +897,7 @@ function Step3({
 }
 
 function Step4({
+  trainingGoal,
   hasRace,
   setHasRace,
   raceDate,
@@ -669,6 +909,7 @@ function Step4({
   onNext,
   onBack,
 }: {
+  trainingGoal: string
   hasRace: boolean | null
   setHasRace: (v: boolean) => void
   raceDate: string
@@ -688,31 +929,38 @@ function Step4({
     else raceWarning = `That's ${weeks} weeks — enough time for a solid build.`
   }
 
-  const canProceed = hasRace === false || (hasRace === true && raceDate !== '')
+  // beat_time always requires a race date
+  const canProceed = trainingGoal === 'beat_time'
+    ? raceDate !== ''
+    : hasRace === false || (hasRace === true && raceDate !== '')
 
   return (
     <div>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Plan timeline</h2>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
-        Are you training for a specific race?
+        {trainingGoal === 'beat_time'
+          ? "When is your target race? We'll build a time-goal plan around it."
+          : 'Are you training for a specific race?'}
       </p>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
-        <div style={tile(hasRace === true)} onClick={() => setHasRace(true)}>
-          <div style={{ fontWeight: 600 }}>Yes, I have a race</div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>Set a specific date</div>
+      {trainingGoal !== 'beat_time' && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
+          <div style={tile(hasRace === true)} onClick={() => setHasRace(true)}>
+            <div style={{ fontWeight: 600 }}>Yes, I have a race</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>Set a specific date</div>
+          </div>
+          <div style={tile(hasRace === false)} onClick={() => setHasRace(false)}>
+            <div style={{ fontWeight: 600 }}>Just training</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>No specific race</div>
+          </div>
         </div>
-        <div style={tile(hasRace === false)} onClick={() => setHasRace(false)}>
-          <div style={{ fontWeight: 600 }}>Just training</div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>No specific race</div>
-        </div>
-      </div>
+      )}
 
-      {hasRace === true && (
+      {(hasRace === true || trainingGoal === 'beat_time') && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
-              Race date
+              Race date {trainingGoal === 'beat_time' && <span style={{ color: 'var(--accent)' }}>*</span>}
             </label>
             <input
               type="date"
@@ -755,7 +1003,7 @@ function Step4({
         </div>
       )}
 
-      {hasRace === false && (
+      {hasRace === false && trainingGoal !== 'beat_time' && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
@@ -805,6 +1053,8 @@ function Step5({
   saving,
 }: {
   config: {
+    trainingGoal: string
+    goalTargetTimeSeconds: number
     targetDistance: string
     abilityLevel: string
     aerobicBasePriority: boolean
@@ -821,22 +1071,31 @@ function Step5({
     effortPreference: string
     isPrimarySport: boolean
     preferencesUserSet: boolean
+    currentWeeklyKm: number
+    abilityLevelForPreview: string
   }
   onEdit: () => void
   onConfirm: () => void
   saving: boolean
 }) {
   const distLabel = DISTANCES.find(d => d.id === config.targetDistance)?.label || config.targetDistance
+  const goalLabel = GOAL_OPTIONS.find(g => g.id === config.trainingGoal)?.label || config.trainingGoal
   const days = config.preferredDays.map(d => DAY_LABELS[d]).join(', ')
   const weeks = config.raceDate ? weeksUntil(config.raceDate) : config.planWeeks
 
+  const hasRaceDate = config.trainingGoal !== 'fitness' && (config.hasRace || config.trainingGoal === 'beat_time')
+
   const rows: [string, string][] = [
-    ['Goal', distLabel],
+    ['Goal', goalLabel],
+    ...(config.trainingGoal === 'beat_time' && config.goalTargetTimeSeconds > 0
+      ? [['Target time', formatDuration(config.goalTargetTimeSeconds)] as [string, string]]
+      : []),
+    ['Distance', distLabel],
     ['Level', `${capitalise(config.abilityLevel)}${config.aerobicBasePriority ? ' (aerobic base priority)' : ''}`],
     ['Runs/week', `${config.suggestedRunsPerWeek}  (${days})`],
     ['Long run', DAY_LABELS[config.longRunDay] || config.longRunDay],
     ['Starts', new Date(config.planStartDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })],
-    config.hasRace
+    hasRaceDate
       ? ['Race', `${new Date(config.raceDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}  (${weeks} weeks)`]
       : ['Duration', `${config.planWeeks} weeks`],
     ['Race terrain', capitalise(config.raceTerrain) || '—'],
@@ -845,6 +1104,16 @@ function Step5({
     ['Effort', `${capitalise(config.effortPreference)}${config.preferencesUserSet ? '' : ' (auto)'}`],
     ...(config.isPrimarySport ? [['Primary sport', 'Yes — plan takes precedence'] as [string, string]] : []),
   ]
+
+  const preview = computeWeek1Preview(
+    config.preferredDays,
+    config.longRunDay,
+    config.suggestedRunsPerWeek,
+    config.currentWeeklyKm,
+    config.abilityLevelForPreview,
+    config.effortPreference,
+  )
+  const previewTotal = preview.reduce((sum, d) => sum + d.km, 0)
 
   return (
     <div>
@@ -858,7 +1127,7 @@ function Step5({
         border: '1px solid var(--border)',
         borderRadius: 12,
         overflow: 'hidden',
-        marginBottom: 32,
+        marginBottom: 24,
       }}>
         {rows.map(([label, value], i) => (
           <div key={label} style={{
@@ -873,6 +1142,44 @@ function Step5({
           </div>
         ))}
       </div>
+
+      {preview.length > 0 && (
+        <div style={{
+          background: 'rgba(99,102,241,0.06)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          padding: '16px 20px',
+          marginBottom: 28,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 12 }}>
+            WEEK 1 PREVIEW
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {preview.map(({ day, type, km }) => (
+              <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                <span style={{ width: 36, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>{day}</span>
+                <span style={{ flex: 1, fontSize: 13 }}>{type}</span>
+                <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>~{km} km</span>
+              </div>
+            ))}
+          </div>
+          <div style={{
+            borderTop: '1px solid var(--border)',
+            marginTop: 12,
+            paddingTop: 10,
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 12,
+            color: 'var(--text-muted)',
+          }}>
+            <span>{preview.length} sessions</span>
+            <span>~{previewTotal} km total</span>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+            Estimated — Claude will refine session details when generating your plan.
+          </p>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12 }}>
         <button style={btnSecondary} onClick={onEdit}>← Edit</button>
@@ -890,13 +1197,22 @@ export default function RunningSetup() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [profileSaving, setProfileSaving] = useState(false)
 
-  // Step 1
+  // Step 1 — Profile
+  const [profileName, setProfileName] = useState('')
+  const [profileAge, setProfileAge] = useState<number | ''>('')
+  const [profileWeight, setProfileWeight] = useState<number | ''>('')
+  const [profileWeeklyHours, setProfileWeeklyHours] = useState(8)
+
+  // Step 2 — Goal & Distance
+  const [trainingGoal, setTrainingGoal] = useState('')
+  const [goalTargetTimeSeconds, setGoalTargetTimeSeconds] = useState(0)
   const [targetDistance, setTargetDistance] = useState('')
   const [raceTerrain, setRaceTerrain] = useState('')
   const [trainingTerrain, setTrainingTerrain] = useState('')
 
-  // Step 2
+  // Step 3 — Ability
   const [hasPreviousRace, setHasPreviousRace] = useState<boolean | null>(null)
   const [bestTimeSeconds, setBestTimeSeconds] = useState(0)
   const [effortScore, setEffortScore] = useState(7)
@@ -905,7 +1221,7 @@ export default function RunningSetup() {
   const [abilityLevel, setAbilityLevel] = useState('beginner')
   const [aerobicBasePriority, setAerobicBasePriority] = useState(false)
 
-  // Step 3
+  // Step 4 — Schedule
   const [recentRuns4Weeks, setRecentRuns4Weeks] = useState(0)
   const [currentWeeklyKm, setCurrentWeeklyKm] = useState(0)
   const [suggestedRunsPerWeek, setSuggestedRunsPerWeek] = useState(3)
@@ -916,7 +1232,7 @@ export default function RunningSetup() {
   const [isPrimarySport, setIsPrimarySport] = useState(false)
   const [preferencesUserSet, setPreferencesUserSet] = useState(false)
 
-  // Step 4
+  // Step 5 — Timeline (skipped for fitness goal)
   const [hasRace, setHasRace] = useState<boolean | null>(null)
   const [raceDate, setRaceDate] = useState('')
   const [planWeeks, setPlanWeeks] = useState(12)
@@ -924,10 +1240,22 @@ export default function RunningSetup() {
 
   const [saving, setSaving] = useState(false)
 
-  // Pre-fill from existing config
+  const totalSteps = trainingGoal === 'fitness' ? 5 : 6
+  // step 6 is the 5th position in the fitness flow (step 5 is skipped)
+  const displayStep = step === 6 && trainingGoal === 'fitness' ? 5 : step
+
+  // Pre-fill from existing config and profile
   useEffect(() => {
-    getRunningConfig().then(({ config }) => {
+    Promise.all([getRunningConfig(), getProfile()]).then(([{ config }, profile]) => {
+      // Profile
+      if (profile.name && profile.name !== 'Athlete') setProfileName(profile.name)
+      if (profile.age) setProfileAge(profile.age)
+      if (profile.weight_kg) setProfileWeight(profile.weight_kg)
+      setProfileWeeklyHours(profile.weekly_training_hours)
+
       if (config) {
+        if (config.training_goal) setTrainingGoal(config.training_goal)
+        if (config.goal_target_time_seconds) setGoalTargetTimeSeconds(config.goal_target_time_seconds)
         setTargetDistance(config.target_distance)
         if (config.race_terrain) setRaceTerrain(config.race_terrain)
         if (config.training_terrain) setTrainingTerrain(config.training_terrain)
@@ -953,7 +1281,7 @@ export default function RunningSetup() {
     }).catch(() => setLoading(false))
   }, [])
 
-  // Auto-classify when time or effort changes (step 2)
+  // Auto-classify when time or effort changes (step 3)
   useEffect(() => {
     if (!hasPreviousRace || !targetDistance || bestTimeSeconds <= 0) return
     const t = setTimeout(async () => {
@@ -992,20 +1320,42 @@ export default function RunningSetup() {
     setSuggestedRunsPerWeek(suggested)
   }, [recentRuns4Weeks, abilityLevel])
 
-  const handleStep2Next = () => {
+  const handleStep1Next = async () => {
+    setProfileSaving(true)
+    try {
+      await updateProfile({
+        name: profileName.trim() || undefined,
+        age: typeof profileAge === 'number' ? profileAge : undefined,
+        weight_kg: typeof profileWeight === 'number' ? profileWeight : undefined,
+        weekly_training_hours: profileWeeklyHours,
+      })
+    } catch { /* profile save is best-effort */ }
+    setProfileSaving(false)
+    setStep(2)
+  }
+
+  const handleStep3Next = () => {
     if (!hasPreviousRace) {
       setAbilityLevel('beginner')
       setAerobicBasePriority(false)
     }
-    setStep(3)
+    setStep(4)
+  }
+
+  const handleStep4Next = () => {
+    // Skip timeline step for fitness goal
+    if (trainingGoal === 'fitness') {
+      setStep(6)
+    } else {
+      setStep(5)
+    }
   }
 
   const handleConfirm = async () => {
     setSaving(true)
     try {
-      const effectiveRaceDate = hasRace ? raceDate : null
-      const effectivePlanWeeks = hasRace ? null : planWeeks
-      const effectiveStartDate = planStartDate
+      const effectiveRaceDate = (hasRace || trainingGoal === 'beat_time') ? raceDate : null
+      const effectivePlanWeeks = (hasRace || trainingGoal === 'beat_time') ? null : planWeeks
 
       await saveRunningConfig({
         target_distance: targetDistance,
@@ -1019,7 +1369,7 @@ export default function RunningSetup() {
         suggested_runs_per_week: suggestedRunsPerWeek,
         preferred_days: preferredDays,
         long_run_day: longRunDay,
-        plan_start_date: effectiveStartDate,
+        plan_start_date: planStartDate,
         race_date: effectiveRaceDate,
         plan_weeks: effectivePlanWeeks,
         race_terrain: raceTerrain || null,
@@ -1028,6 +1378,8 @@ export default function RunningSetup() {
         effort_preference: effortPreference,
         is_primary_sport: isPrimarySport,
         preferences_user_set: preferencesUserSet,
+        training_goal: trainingGoal || null,
+        goal_target_time_seconds: trainingGoal === 'beat_time' ? goalTargetTimeSeconds : null,
       })
       navigate('/running')
     } catch (e: any) {
@@ -1039,13 +1391,13 @@ export default function RunningSetup() {
 
   if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
 
-  const progressPct = ((step - 1) / 4) * 100
+  const progressPct = ((displayStep - 1) / (totalSteps - 1)) * 100
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Running Setup</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Step {step} of 5</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Step {displayStep} of {totalSteps}</p>
         <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, marginTop: 12 }}>
           <div style={{
             height: '100%',
@@ -1058,17 +1410,36 @@ export default function RunningSetup() {
       </div>
 
       {step === 1 && (
+        <Step0Profile
+          name={profileName}
+          setName={setProfileName}
+          age={profileAge}
+          setAge={setProfileAge}
+          weightKg={profileWeight}
+          setWeightKg={setProfileWeight}
+          weeklyHours={profileWeeklyHours}
+          setWeeklyHours={setProfileWeeklyHours}
+          onNext={handleStep1Next}
+          saving={profileSaving}
+        />
+      )}
+      {step === 2 && (
         <Step1
+          trainingGoal={trainingGoal}
+          setTrainingGoal={setTrainingGoal}
+          goalTargetTimeSeconds={goalTargetTimeSeconds}
+          setGoalTargetTimeSeconds={setGoalTargetTimeSeconds}
           targetDistance={targetDistance}
           setTargetDistance={setTargetDistance}
           raceTerrain={raceTerrain}
           setRaceTerrain={setRaceTerrain}
           trainingTerrain={trainingTerrain}
           setTrainingTerrain={setTrainingTerrain}
-          onNext={() => setStep(2)}
+          onNext={() => setStep(3)}
+          onBack={() => setStep(1)}
         />
       )}
-      {step === 2 && (
+      {step === 3 && (
         <Step2
           targetDistance={targetDistance}
           hasPreviousRace={hasPreviousRace}
@@ -1079,11 +1450,11 @@ export default function RunningSetup() {
           setEffortScore={setEffortScore}
           classifyResult={classifyResult}
           classifying={classifying}
-          onNext={handleStep2Next}
-          onBack={() => setStep(1)}
+          onNext={handleStep3Next}
+          onBack={() => setStep(2)}
         />
       )}
-      {step === 3 && (
+      {step === 4 && (
         <Step3
           recentRuns4Weeks={recentRuns4Weeks}
           setRecentRuns4Weeks={setRecentRuns4Weeks}
@@ -1102,12 +1473,13 @@ export default function RunningSetup() {
           setIsPrimarySport={setIsPrimarySport}
           preferencesUserSet={preferencesUserSet}
           onPreferenceChange={() => setPreferencesUserSet(true)}
-          onNext={() => setStep(4)}
-          onBack={() => setStep(2)}
+          onNext={handleStep4Next}
+          onBack={() => setStep(3)}
         />
       )}
-      {step === 4 && (
+      {step === 5 && trainingGoal !== 'fitness' && (
         <Step4
+          trainingGoal={trainingGoal}
           hasRace={hasRace}
           setHasRace={setHasRace}
           raceDate={raceDate}
@@ -1116,13 +1488,15 @@ export default function RunningSetup() {
           setPlanWeeks={setPlanWeeks}
           planStartDate={planStartDate}
           setPlanStartDate={setPlanStartDate}
-          onNext={() => setStep(5)}
-          onBack={() => setStep(3)}
+          onNext={() => setStep(6)}
+          onBack={() => setStep(4)}
         />
       )}
-      {step === 5 && (
+      {step === 6 && (
         <Step5
           config={{
+            trainingGoal,
+            goalTargetTimeSeconds,
             targetDistance,
             abilityLevel,
             aerobicBasePriority,
@@ -1139,8 +1513,10 @@ export default function RunningSetup() {
             effortPreference,
             isPrimarySport,
             preferencesUserSet,
+            currentWeeklyKm,
+            abilityLevelForPreview: abilityLevel,
           }}
-          onEdit={() => setStep(4)}
+          onEdit={() => setStep(trainingGoal === 'fitness' ? 4 : 5)}
           onConfirm={handleConfirm}
           saving={saving}
         />

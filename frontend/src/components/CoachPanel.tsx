@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send } from 'lucide-react'
+import { Send, Lock } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { sendCoachMessage, getCoachHistory, CoachMessage } from '../lib/api'
 
-export default function CoachPanel() {
+export default function CoachPanel({ locked }: { locked?: boolean }) {
   const [messages, setMessages] = useState<CoachMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -45,6 +45,29 @@ export default function CoachPanel() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (locked) {
+    return (
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 340,
+        gap: 12,
+        color: 'var(--text-muted)',
+      }}>
+        <Lock size={24} strokeWidth={1.5} />
+        <div style={{ fontSize: 14, fontWeight: 600 }}>AI Coach</div>
+        <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 260, lineHeight: 1.5 }}>
+          Set up your running plan to unlock the AI coach.
+        </div>
+      </div>
+    )
   }
 
   return (

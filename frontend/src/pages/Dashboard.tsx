@@ -50,6 +50,41 @@ export default function Dashboard() {
 
   return (
     <div>
+      {!data.running_onboarded && (
+        <div style={{
+          background: 'rgba(99,102,241,0.08)',
+          border: '1px solid var(--accent)',
+          borderRadius: 'var(--radius)',
+          padding: '16px 20px',
+          marginBottom: 24,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Welcome to BrickHub!</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              Set up your running plan to get started — it takes about 2 minutes.
+            </div>
+          </div>
+          <Link
+            to="/running"
+            style={{
+              background: 'var(--accent)',
+              color: 'white',
+              borderRadius: 8,
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Set up running →
+          </Link>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>
@@ -188,7 +223,7 @@ export default function Dashboard() {
       </div>
 
       {/* Coach panel - full width */}
-      <CoachPanel />
+      <CoachPanel locked={!data.running_onboarded} />
     </div>
   )
 }

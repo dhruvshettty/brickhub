@@ -60,6 +60,8 @@ class RunningConfigRequest(BaseModel):
     effort_preference: str | None = None
     is_primary_sport: bool = False
     preferences_user_set: bool = False
+    training_goal: str | None = None
+    goal_target_time_seconds: int | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
