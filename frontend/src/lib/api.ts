@@ -26,6 +26,8 @@ export const getRunningPlan = (weekStart?: string) =>
   request<PlanResponse>(`/running/plan${weekStart ? `?week_start=${weekStart}` : ''}`)
 export const logWorkout = (data: WorkoutLogRequest) =>
   request('/running/log', { method: 'POST', body: JSON.stringify(data) })
+export const clearWorkoutLog = (date: string) =>
+  request(`/running/log/${date}`, { method: 'DELETE' })
 export const recalibrateRunning = () =>
   request('/running/recalibrate', { method: 'POST' })
 export const getRunningConfig = () =>
@@ -91,6 +93,7 @@ export interface PlanResponse {
   } | null
   ai_unavailable: boolean
   message?: string
+  day_logs: Record<string, 'done' | 'missed'>
 }
 
 export interface CoachMessage {

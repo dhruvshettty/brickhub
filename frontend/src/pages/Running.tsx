@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RefreshCw, Settings2 } from 'lucide-react'
-import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, PlanDay, PlanResponse, RunningConfig } from '../lib/api'
+import { RefreshCw, Settings2, Undo2 } from 'lucide-react'
+import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, RunningConfig } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 
 const PLAN_MESSAGES = [
@@ -134,6 +134,7 @@ export default function Running() {
   const [recalibrating, setRecalibrating] = useState(false)
   const [logging, setLogging] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [logState, setLogState] = useState<Record<string, 'done' | 'missed' | null>>({})
 
   useEffect(() => {
     init()
@@ -151,6 +152,7 @@ export default function Running() {
       setRunningConfig(config)
       const data = await getRunningPlan()
       setPlanData(data)
+      setLogState(data.day_logs ?? {})
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -164,6 +166,7 @@ export default function Running() {
     try {
       const data = await getRunningPlan()
       setPlanData(data)
+      setLogState(data.day_logs ?? {})
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -183,16 +186,34 @@ export default function Running() {
     }
   }
 
-  const handleLog = async (day: PlanDay, completed: boolean) => {
+  const handleLog = async (day: PlanDay, status: 'done' | 'missed') => {
+    if (logState[day.date] === status) return
+    const prev = logState[day.date] ?? null
+    setLogState(s => ({ ...s, [day.date]: status }))
     setLogging(day.date)
     try {
       await logWorkout({
         planned_at: day.date,
-        completed_at: completed ? day.date : null,
-        duration_minutes: completed ? day.duration_minutes : null,
-        distance_km: completed ? day.distance_km : null,
+        completed_at: status === 'done' ? day.date : null,
+        duration_minutes: status === 'done' ? day.duration_minutes : null,
+        distance_km: status === 'done' ? day.distance_km : null,
       })
     } catch (e: any) {
+      setLogState(s => ({ ...s, [day.date]: prev }))
+      setError(e.message)
+    } finally {
+      setLogging(null)
+    }
+  }
+
+  const handleClearLog = async (day: PlanDay) => {
+    const prev = logState[day.date] ?? null
+    setLogState(s => ({ ...s, [day.date]: null }))
+    setLogging(day.date)
+    try {
+      await clearWorkoutLog(day.date)
+    } catch (e: any) {
+      setLogState(s => ({ ...s, [day.date]: prev }))
       setError(e.message)
     } finally {
       setLogging(null)
@@ -377,35 +398,62 @@ export default function Running() {
                 </div>
 
                 {day.type !== 'rest' && (
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <button
-                      onClick={() => handleLog(day, true)}
+                      onClick={() => handleLog(day, 'done')}
                       disabled={logging === day.date}
+                      title="Mark as done"
                       style={{
-                        background: '#14532d',
-                        border: '1px solid #166534',
+                        background: logState[day.date] === 'done' ? '#16a34a' : 'transparent',
+                        border: `1px solid ${logState[day.date] === 'done' ? '#16a34a' : 'var(--border)'}`,
                         borderRadius: 6,
-                        color: '#22c55e',
+                        color: logState[day.date] === 'done' ? '#fff' : 'var(--text-muted)',
                         padding: '4px 10px',
                         fontSize: 12,
+                        fontWeight: logState[day.date] === 'done' ? 600 : 400,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
                       }}
                     >
-                      Done
+                      ✓ Done
                     </button>
                     <button
-                      onClick={() => handleLog(day, false)}
+                      onClick={() => handleLog(day, 'missed')}
                       disabled={logging === day.date}
+                      title="Mark as missed"
                       style={{
-                        background: 'transparent',
-                        border: '1px solid var(--border)',
+                        background: logState[day.date] === 'missed' ? '#7f1d1d' : 'transparent',
+                        border: `1px solid ${logState[day.date] === 'missed' ? '#991b1b' : 'var(--border)'}`,
                         borderRadius: 6,
-                        color: 'var(--text-muted)',
+                        color: logState[day.date] === 'missed' ? '#fca5a5' : 'var(--text-muted)',
                         padding: '4px 10px',
                         fontSize: 12,
+                        fontWeight: logState[day.date] === 'missed' ? 600 : 400,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
                       }}
                     >
-                      Missed
+                      ✗ Missed
                     </button>
+                    {logState[day.date] && (
+                      <button
+                        onClick={() => handleClearLog(day)}
+                        disabled={logging === day.date}
+                        title="Undo"
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border)',
+                          borderRadius: 6,
+                          color: 'var(--text-muted)',
+                          padding: '4px 7px',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          lineHeight: 1,
+                        }}
+                      >
+                        <Undo2 size={12} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

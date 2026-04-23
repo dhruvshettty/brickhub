@@ -116,11 +116,27 @@ def classify_ability(req: ClassifyRequest):
     return result
 
 
+def _day_logs_for_week(db: Session, week_start: date) -> dict[str, str]:
+    """Return {date_str: 'done'|'missed'} for all logged running sessions in the week."""
+    week_end = week_start + timedelta(days=6)
+    logs = db.query(WorkoutLog).filter(
+        WorkoutLog.module == ModuleType.running,
+        WorkoutLog.planned_at >= datetime.combine(week_start, datetime.min.time()),
+        WorkoutLog.planned_at <= datetime.combine(week_end, datetime.max.time()),
+    ).all()
+    return {
+        log.planned_at.date().isoformat(): ("done" if log.completed_at else "missed")
+        for log in logs
+    }
+
+
 @router.get("/plan")
 def get_running_plan(week_start: date | None = None, db: Session = Depends(get_db)):
     if week_start is None:
         today = date.today()
         week_start = today - timedelta(days=today.weekday())
+
+    day_logs = _day_logs_for_week(db, week_start)
 
     plan = db.query(WeeklyPlan).filter(
         WeeklyPlan.module == "running",
@@ -128,30 +144,49 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
     ).first()
 
     if plan:
-        return {"plan": plan.plan_json, "ai_unavailable": False}
+        return {"plan": plan.plan_json, "ai_unavailable": False, "day_logs": day_logs}
 
     profile = _get_or_create_profile(db)
     try:
         claude = get_claude_service()
         plan_json = generate_running_plan(db, claude, profile, week_start)
         save_plan(db, "running", week_start, plan_json)
-        return {"plan": plan_json, "ai_unavailable": False}
+        return {"plan": plan_json, "ai_unavailable": False, "day_logs": day_logs}
     except ClaudeUnavailableError:
         return {
             "plan": None,
             "ai_unavailable": True,
             "message": "AI coach unavailable. Set your ANTHROPIC_API_KEY in .env and restart.",
+            "day_logs": {},
         }
     except EnvironmentError as e:
-        return {"plan": None, "ai_unavailable": True, "message": str(e)}
+        return {"plan": None, "ai_unavailable": True, "message": str(e), "day_logs": {}}
 
 
 @router.post("/log")
 def log_workout(req: WorkoutLogRequest, db: Session = Depends(get_db)):
+    planned_dt = datetime.combine(req.planned_at, datetime.min.time())
+    completed_dt = datetime.combine(req.completed_at, datetime.min.time()) if req.completed_at else None
+
+    existing = db.query(WorkoutLog).filter(
+        WorkoutLog.module == ModuleType.running,
+        WorkoutLog.planned_at == planned_dt,
+    ).first()
+
+    if existing:
+        existing.completed_at = completed_dt
+        existing.duration_minutes = req.duration_minutes
+        existing.distance_km = req.distance_km
+        existing.avg_hr = req.avg_hr
+        existing.notes = req.notes
+        db.commit()
+        db.refresh(existing)
+        return {"id": existing.id, "logged": True}
+
     log = WorkoutLog(
         module=ModuleType.running,
-        planned_at=datetime.combine(req.planned_at, datetime.min.time()),
-        completed_at=datetime.combine(req.completed_at, datetime.min.time()) if req.completed_at else None,
+        planned_at=planned_dt,
+        completed_at=completed_dt,
         duration_minutes=req.duration_minutes,
         distance_km=req.distance_km,
         avg_hr=req.avg_hr,
@@ -162,6 +197,17 @@ def log_workout(req: WorkoutLogRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(log)
     return {"id": log.id, "logged": True}
+
+
+@router.delete("/log/{log_date}")
+def clear_workout_log(log_date: date, db: Session = Depends(get_db)):
+    planned_dt = datetime.combine(log_date, datetime.min.time())
+    deleted = db.query(WorkoutLog).filter(
+        WorkoutLog.module == ModuleType.running,
+        WorkoutLog.planned_at == planned_dt,
+    ).delete()
+    db.commit()
+    return {"deleted": deleted > 0}
 
 
 @router.post("/recalibrate")
