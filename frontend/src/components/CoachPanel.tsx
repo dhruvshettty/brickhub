@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { sendCoachMessage, getCoachHistory, CoachMessage } from '../lib/api'
 
 export default function CoachPanel() {
@@ -83,9 +84,24 @@ export default function CoachPanel() {
             padding: '8px 12px',
             fontSize: 13,
             lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
           }}>
-            {msg.content}
+            {msg.role === 'assistant' ? (
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <p style={{ margin: '0 0 6px' }}>{children}</p>,
+                  strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+                  em: ({ children }) => <em>{children}</em>,
+                  ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ul>,
+                  ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ol>,
+                  li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
+                  code: ({ children }) => <code style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 3, padding: '1px 4px', fontSize: 12 }}>{children}</code>,
+                }}
+              >
+                {msg.content}
+              </ReactMarkdown>
+            ) : (
+              <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+            )}
           </div>
         ))}
         {loading && (
