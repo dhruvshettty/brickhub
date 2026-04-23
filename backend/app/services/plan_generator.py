@@ -142,6 +142,27 @@ def generate_running_plan(
             "text": f"Athlete profile:\n{_profile_context(profile)}",
             "cache": True,
         },
+        {
+            "text": (
+                "Return JSON with this exact structure:\n"
+                '{\n'
+                '  "week_start": "YYYY-MM-DD",\n'
+                '  "module": "running",\n'
+                '  "summary": "One sentence describing this week\'s focus",\n'
+                '  "days": [\n'
+                '    {\n'
+                '      "date": "YYYY-MM-DD",\n'
+                '      "type": "easy|tempo|interval|long|race_pace|recovery|rest",\n'
+                '      "distance_km": 0,\n'
+                '      "duration_minutes": 0,\n'
+                '      "pace_zone": "zone1-5 or null",\n'
+                '      "description": "Brief instruction for this session"\n'
+                '    }\n'
+                '  ]\n'
+                '}'
+            ),
+            "cache": True,
+        },
     ]
 
     running_config_str = ""
@@ -157,24 +178,9 @@ Generate a 7-day running plan for the week starting {week_start.isoformat()}.
 Include rest days. Adjust intensity based on fatigue and cross-module signals.
 Schedule runs on the athlete's preferred days when possible.
 
-Return JSON with this exact structure:
-{{
-  "week_start": "{week_start.isoformat()}",
-  "module": "running",
-  "summary": "One sentence describing this week's focus",
-  "days": [
-    {{
-      "date": "YYYY-MM-DD",
-      "type": "easy|tempo|interval|long|race_pace|recovery|rest",
-      "distance_km": 0,
-      "duration_minutes": 0,
-      "pace_zone": "zone1-5 or null",
-      "description": "Brief instruction for this session"
-    }}
-  ]
-}}"""
+Use {week_start.isoformat()} as the week_start value in your JSON response."""
 
-    raw = claude.generate_with_cache(system_parts, user_prompt)
+    raw = claude.generate_with_cache(system_parts, user_prompt, call_type="plan_generation")
 
     try:
         return json.loads(raw)

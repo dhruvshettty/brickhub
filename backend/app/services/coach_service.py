@@ -85,11 +85,11 @@ def chat(
 
     system = _build_coach_system(profile, db, today)
 
-    # Load conversation history (last 20 messages for context)
+    # Load conversation history (last 10 messages for context)
     history = (
         db.query(CoachMessage)
         .order_by(CoachMessage.created_at.desc())
-        .limit(20)
+        .limit(10)
         .all()
     )
     history.reverse()

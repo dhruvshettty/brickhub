@@ -16,6 +16,13 @@ from app.services.claude_service import ClaudeService, ClaudeUnavailableError
 from app.services.cross_module import get_signals, signals_to_context_string
 from app.services.plan_generator import save_plan, _profile_context
 
+_RECALIBRATION_SYSTEM = (
+    "You are a triathlon running coach. A week has just ended. "
+    "Recalibrate next week's plan based on what was missed. "
+    "Don't just reschedule missed sessions — adjust intensity and volume sensibly. "
+    "Return valid JSON only."
+)
+
 
 def recalibrate_running(
     db: Session,
@@ -27,7 +34,6 @@ def recalibrate_running(
     today = date.today()
     next_week_start = current_week_start + timedelta(weeks=1)
 
-    # What did we miss this week?
     missed = db.query(WorkoutLog).filter(
         WorkoutLog.module == "running",
         WorkoutLog.planned_at >= current_week_start,
@@ -52,15 +58,10 @@ def recalibrate_running(
 
     completed_summary = f"{len(completed)} sessions completed"
 
-    system = (
-        "You are a triathlon running coach. A week has just ended. "
-        "Recalibrate next week's plan based on what was missed. "
-        "Don't just reschedule missed sessions — adjust intensity and volume sensibly. "
-        "Return valid JSON only."
-    )
+    system_parts = [{"text": _RECALIBRATION_SYSTEM, "cache": True}]
 
     user_prompt = f"""Athlete profile:
-{_profile_context(profile, today)}
+{_profile_context(profile)}
 
 This week summary:
 - Missed sessions: {missed_summary}
@@ -79,7 +80,12 @@ Use the same JSON structure as always:
   "days": [...]
 }}"""
 
-    raw = claude.generate(system, user_prompt)
+    raw = claude.generate_with_cache(
+        system_parts,
+        user_prompt,
+        model="claude-haiku-4-5-20251001",
+        call_type="recalibration",
+    )
 
     try:
         plan_json = json.loads(raw)
