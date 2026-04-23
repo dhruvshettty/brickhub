@@ -62,6 +62,7 @@ class RunningConfigRequest(BaseModel):
     preferences_user_set: bool = False
     training_goal: str | None = None
     goal_target_time_seconds: int | None = None
+    regenerate: bool = True
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ def get_running_config(db: Session = Depends(get_db)):
 def save_running_config(req: RunningConfigRequest, db: Session = Depends(get_db)):
     profile = _get_or_create_profile(db)
 
-    config_data: dict[str, Any] = req.model_dump()
+    config_data: dict[str, Any] = req.model_dump(exclude={"regenerate"})
     config_data["onboarded_at"] = datetime.utcnow().isoformat() + "Z"
 
     config = _get_running_config(db, profile.id)
@@ -100,12 +101,13 @@ def save_running_config(req: RunningConfigRequest, db: Session = Depends(get_db)
         config.updated_at = datetime.utcnow()
 
     # Invalidate the current week's cached plan so it regenerates with the new config
-    today = date.today()
-    current_week_start = today - timedelta(days=today.weekday())
-    db.query(WeeklyPlan).filter(
-        WeeklyPlan.module == "running",
-        WeeklyPlan.week_start == current_week_start,
-    ).delete()
+    if req.regenerate:
+        today = date.today()
+        current_week_start = today - timedelta(days=today.weekday())
+        db.query(WeeklyPlan).filter(
+            WeeklyPlan.module == "running",
+            WeeklyPlan.week_start == current_week_start,
+        ).delete()
 
     db.commit()
     db.refresh(config)
@@ -147,6 +149,12 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
 
     if plan:
         return {"plan": plan.plan_json, "ai_unavailable": False, "day_logs": day_logs}
+
+    # Never generate a plan retroactively for past weeks — what's stored is the record.
+    today = date.today()
+    current_week_start = today - timedelta(days=today.weekday())
+    if week_start < current_week_start:
+        return {"plan": None, "ai_unavailable": False, "day_logs": day_logs}
 
     profile = _get_or_create_profile(db)
     try:

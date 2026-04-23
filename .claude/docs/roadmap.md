@@ -40,12 +40,12 @@ Everything needed to nail the running experience end-to-end, plus a solid traini
 - [x] Dashboard: guided first-run banner when running not set up; coach panel locked until running onboarded
 - [x] `training_goal` + `goal_target_time_seconds` injected into Claude prompt for plan generation
 
-### Running — Plan & UI Polish 🔲 To Do
-- [ ] Re-onboarding flow: editing config should offer to regenerate or keep current plan
-- [ ] Plan view shows preferred days highlighted
-- [ ] Completed sessions marked persistently (not just a button)
-- [ ] Week navigation (view past weeks, not just current)
-- [ ] Plan explanation — why each session is what it is
+### Running — Plan & UI Polish ✅ Done
+- [x] Re-onboarding flow: editing config should offer to regenerate or keep current plan
+- [x] Plan view shows preferred days highlighted
+- [x] Completed sessions marked persistently (not just a button)
+- [x] Week navigation (past weeks only; no forward navigation; past plans served from cache, never regenerated; explanatory note on why plans are week-by-week)
+- [x] Plan explanation — why each session is what it is
 
 ### Training Effort & Fatigue 🔲 To Do
 - [ ] Training load score (TSS-like) calculated per session and per week

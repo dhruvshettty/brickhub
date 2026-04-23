@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RefreshCw, Settings2, Undo2 } from 'lucide-react'
+import { RefreshCw, Settings2, Undo2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, RunningConfig } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 
@@ -32,7 +32,6 @@ function PlanGeneratingScreen() {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       minHeight: '60vh', gap: 32,
     }}>
-      {/* Running figure SVG animation */}
       <div style={{ position: 'relative', width: 120, height: 80 }}>
         <style>{`
           @keyframes run-body { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
@@ -49,20 +48,13 @@ function PlanGeneratingScreen() {
           .run-shadow { animation: shadow-pulse 0.55s ease-in-out infinite; transform-origin: 60px 72px; }
         `}</style>
         <svg viewBox="0 0 120 80" width="120" height="80" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* Shadow */}
           <ellipse className="run-shadow" cx="60" cy="72" rx="18" ry="4" fill="var(--text-muted)" opacity="0.25" />
           <g className="run-figure">
-            {/* Head */}
             <circle cx="60" cy="14" r="7" fill="var(--accent)" />
-            {/* Body */}
             <line x1="60" y1="21" x2="60" y2="46" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" />
-            {/* Back arm */}
             <line className="run-arm-b" x1="58" y1="28" x2="44" y2="38" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
-            {/* Front arm */}
             <line className="run-arm-f" x1="58" y1="28" x2="72" y2="36" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
-            {/* Back leg */}
             <line className="run-leg-b" x1="60" y1="46" x2="46" y2="64" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
-            {/* Front leg */}
             <line className="run-leg-f" x1="60" y1="46" x2="74" y2="62" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
           </g>
         </svg>
@@ -77,7 +69,6 @@ function PlanGeneratingScreen() {
         </p>
       </div>
 
-      {/* Progress bar */}
       <div style={{ width: 240, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
         <div style={{
           height: '100%',
@@ -105,8 +96,6 @@ const RUN_TYPE_COLOR: Record<string, string> = {
   rest: 'transparent',
 }
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -114,6 +103,25 @@ function formatDate(dateStr: string): string {
 
 function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split('T')[0]
+}
+
+function currentWeekMonday(): string {
+  const d = new Date()
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().split('T')[0]
+}
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split('T')[0]
+}
+
+function getDayOfWeek(dateStr: string): string {
+  const map = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  return map[new Date(dateStr + 'T00:00:00').getDay()]
 }
 
 function weeksToRace(raceDateStr: string | null): number | null {
@@ -135,6 +143,10 @@ export default function Running() {
   const [logging, setLogging] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [logState, setLogState] = useState<Record<string, 'done' | 'missed' | null>>({})
+  const [selectedWeek, setSelectedWeek] = useState<string>(currentWeekMonday())
+  const [expandedRationale, setExpandedRationale] = useState<Set<string>>(new Set())
+
+  const thisWeek = currentWeekMonday()
 
   useEffect(() => {
     init()
@@ -160,11 +172,12 @@ export default function Running() {
     }
   }
 
-  const loadPlan = async () => {
+  const loadWeek = async (weekStart: string) => {
     setLoading(true)
     setError(null)
+    setExpandedRationale(new Set())
     try {
-      const data = await getRunningPlan()
+      const data = await getRunningPlan(weekStart)
       setPlanData(data)
       setLogState(data.day_logs ?? {})
     } catch (e: any) {
@@ -174,11 +187,22 @@ export default function Running() {
     }
   }
 
+  const goToPrevWeek = () => {
+    const prev = addDays(selectedWeek, -7)
+    setSelectedWeek(prev)
+    loadWeek(prev)
+  }
+
+  const goToThisWeek = () => {
+    setSelectedWeek(thisWeek)
+    loadWeek(thisWeek)
+  }
+
   const handleRecalibrate = async () => {
     setRecalibrating(true)
     try {
       await recalibrateRunning()
-      await loadPlan()
+      await loadWeek(selectedWeek)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -220,14 +244,25 @@ export default function Running() {
     }
   }
 
+  const toggleRationale = (date: string) => {
+    setExpandedRationale(prev => {
+      const next = new Set(prev)
+      next.has(date) ? next.delete(date) : next.add(date)
+      return next
+    })
+  }
+
   if (loading) return <PlanGeneratingScreen />
   if (error) return <div style={{ color: 'var(--red)' }}>{error}</div>
 
   const plan = planData?.plan
   const aiUnavailable = planData?.ai_unavailable
+  const preferredDays = new Set(runningConfig?.preferred_days ?? [])
+  const isPastWeek = selectedWeek < thisWeek
 
   return (
     <div>
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Running</h1>
@@ -257,12 +292,71 @@ export default function Running() {
               )}
             </div>
           )}
-          {plan && (
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>
-              Week of {new Date(plan.week_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
-            </p>
-          )}
+
+          {/* Week navigation */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <button
+              onClick={goToPrevWeek}
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                color: 'var(--text-muted)',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', minWidth: 140 }}>
+              {isPastWeek
+                ? new Date(selectedWeek + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+                : plan
+                  ? new Date(plan.week_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+                  : new Date(selectedWeek + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+              }
+              {isPastWeek && (
+                <span style={{ color: 'var(--text-muted)', opacity: 0.6, marginLeft: 4 }}>(past)</span>
+              )}
+            </span>
+            {isPastWeek ? (
+              <button
+                onClick={goToThisWeek}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  color: 'var(--accent)',
+                  padding: '3px 10px',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                }}
+              >
+                This week →
+              </button>
+            ) : (
+              <button
+                disabled
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  color: 'var(--border)',
+                  padding: '4px 8px',
+                  cursor: 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  opacity: 0.4,
+                }}
+              >
+                <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
         </div>
+
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={() => navigate('/running/setup')}
@@ -339,126 +433,209 @@ export default function Running() {
           <Card style={{ marginBottom: 16 }}>
             <CardTitle>Week Focus</CardTitle>
             <p style={{ fontSize: 14 }}>{plan.summary}</p>
+            {!isPastWeek && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.5, opacity: 0.7 }}>
+                Plans are generated one week at a time. Your body adapts continuously — fatigue, sleep, missed sessions,
+                and cross-training all shift what's right for you. A plan more than a week out would be a guess.
+              </p>
+            )}
           </Card>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {plan.days.map(day => (
-              <div
-                key={day.date}
-                style={{
-                  background: 'var(--surface)',
-                  border: `1px solid ${isToday(day.date) ? 'var(--accent)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius)',
-                  padding: 16,
-                  display: 'grid',
-                  gridTemplateColumns: '120px 80px 1fr auto',
-                  alignItems: 'center',
-                  gap: 16,
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>
-                    {formatDate(day.date)}
-                  </div>
-                  {isToday(day.date) && (
-                    <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>Today</div>
-                  )}
-                </div>
+            {plan.days.map(day => {
+              const isPreferred = preferredDays.has(getDayOfWeek(day.date))
+              const rationaleOpen = expandedRationale.has(day.date)
 
-                <div>
-                  {day.type === 'rest' ? (
-                    <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Rest</span>
-                  ) : (
-                    <span style={{
-                      background: RUN_TYPE_COLOR[day.type] || 'var(--border)',
-                      color: 'white',
-                      borderRadius: 4,
-                      padding: '2px 8px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                    }}>
-                      {day.type}
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  {day.type !== 'rest' && (
-                    <div style={{ fontSize: 13 }}>
-                      <span style={{ fontWeight: 600 }}>{day.distance_km} km</span>
-                      {day.pace_zone && (
-                        <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>{day.pace_zone}</span>
-                      )}
-                      <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 12 }}>
-                        {day.description}
+              return (
+                <div
+                  key={day.date}
+                  style={{
+                    background: 'var(--surface)',
+                    border: `1px solid ${isToday(day.date) ? 'var(--accent)' : 'var(--border)'}`,
+                    borderLeft: isPreferred && day.type !== 'rest'
+                      ? `3px solid var(--accent)`
+                      : isToday(day.date)
+                      ? `1px solid var(--accent)`
+                      : '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{
+                    padding: 16,
+                    display: 'grid',
+                    gridTemplateColumns: '120px 80px 1fr auto',
+                    alignItems: 'center',
+                    gap: 16,
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>
+                        {formatDate(day.date)}
                       </div>
+                      {isToday(day.date) && (
+                        <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>Today</div>
+                      )}
+                      {isPreferred && day.type !== 'rest' && !isToday(day.date) && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>preferred</div>
+                      )}
+                    </div>
+
+                    <div>
+                      {day.type === 'rest' ? (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Rest</span>
+                      ) : (
+                        <span style={{
+                          background: RUN_TYPE_COLOR[day.type] || 'var(--border)',
+                          color: 'white',
+                          borderRadius: 4,
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                        }}>
+                          {day.type}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      {day.type !== 'rest' && (
+                        <div style={{ fontSize: 13 }}>
+                          <span style={{ fontWeight: 600 }}>{day.distance_km} km</span>
+                          {day.pace_zone && (
+                            <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>{day.pace_zone}</span>
+                          )}
+                          <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 12 }}>
+                            {day.description}
+                          </div>
+                          {day.rationale && (
+                            <button
+                              onClick={() => toggleRationale(day.date)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: '2px 0',
+                                marginTop: 4,
+                                fontSize: 11,
+                                color: 'var(--accent)',
+                                cursor: 'pointer',
+                                opacity: 0.8,
+                              }}
+                            >
+                              {rationaleOpen ? '▲ Hide' : '▼ Why this session?'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {day.type !== 'rest' && !isPastWeek && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          onClick={() => handleLog(day, 'done')}
+                          disabled={logging === day.date}
+                          title="Mark as done"
+                          style={{
+                            background: logState[day.date] === 'done' ? '#16a34a' : 'transparent',
+                            border: `1px solid ${logState[day.date] === 'done' ? '#16a34a' : 'var(--border)'}`,
+                            borderRadius: 6,
+                            color: logState[day.date] === 'done' ? '#fff' : 'var(--text-muted)',
+                            padding: '4px 10px',
+                            fontSize: 12,
+                            fontWeight: logState[day.date] === 'done' ? 600 : 400,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          ✓ Done
+                        </button>
+                        <button
+                          onClick={() => handleLog(day, 'missed')}
+                          disabled={logging === day.date}
+                          title="Mark as missed"
+                          style={{
+                            background: logState[day.date] === 'missed' ? '#7f1d1d' : 'transparent',
+                            border: `1px solid ${logState[day.date] === 'missed' ? '#991b1b' : 'var(--border)'}`,
+                            borderRadius: 6,
+                            color: logState[day.date] === 'missed' ? '#fca5a5' : 'var(--text-muted)',
+                            padding: '4px 10px',
+                            fontSize: 12,
+                            fontWeight: logState[day.date] === 'missed' ? 600 : 400,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          ✗ Missed
+                        </button>
+                        {logState[day.date] && (
+                          <button
+                            onClick={() => handleClearLog(day)}
+                            disabled={logging === day.date}
+                            title="Undo"
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid var(--border)',
+                              borderRadius: 6,
+                              color: 'var(--text-muted)',
+                              padding: '4px 7px',
+                              fontSize: 11,
+                              cursor: 'pointer',
+                              lineHeight: 1,
+                            }}
+                          >
+                            <Undo2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {day.type !== 'rest' && isPastWeek && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'right' }}>
+                        {logState[day.date] === 'done' && <span style={{ color: '#22c55e' }}>✓ Done</span>}
+                        {logState[day.date] === 'missed' && <span style={{ color: '#ef4444' }}>✗ Missed</span>}
+                        {!logState[day.date] && <span style={{ opacity: 0.4 }}>—</span>}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Rationale panel */}
+                  {rationaleOpen && day.rationale && (
+                    <div style={{
+                      padding: '10px 16px 14px',
+                      borderTop: '1px solid var(--border)',
+                      background: 'rgba(99,102,241,0.04)',
+                      fontSize: 12,
+                      color: 'var(--text-muted)',
+                      lineHeight: 1.6,
+                    }}>
+                      <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: 6 }}>Why:</span>
+                      {day.rationale}
                     </div>
                   )}
                 </div>
-
-                {day.type !== 'rest' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button
-                      onClick={() => handleLog(day, 'done')}
-                      disabled={logging === day.date}
-                      title="Mark as done"
-                      style={{
-                        background: logState[day.date] === 'done' ? '#16a34a' : 'transparent',
-                        border: `1px solid ${logState[day.date] === 'done' ? '#16a34a' : 'var(--border)'}`,
-                        borderRadius: 6,
-                        color: logState[day.date] === 'done' ? '#fff' : 'var(--text-muted)',
-                        padding: '4px 10px',
-                        fontSize: 12,
-                        fontWeight: logState[day.date] === 'done' ? 600 : 400,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      ✓ Done
-                    </button>
-                    <button
-                      onClick={() => handleLog(day, 'missed')}
-                      disabled={logging === day.date}
-                      title="Mark as missed"
-                      style={{
-                        background: logState[day.date] === 'missed' ? '#7f1d1d' : 'transparent',
-                        border: `1px solid ${logState[day.date] === 'missed' ? '#991b1b' : 'var(--border)'}`,
-                        borderRadius: 6,
-                        color: logState[day.date] === 'missed' ? '#fca5a5' : 'var(--text-muted)',
-                        padding: '4px 10px',
-                        fontSize: 12,
-                        fontWeight: logState[day.date] === 'missed' ? 600 : 400,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      ✗ Missed
-                    </button>
-                    {logState[day.date] && (
-                      <button
-                        onClick={() => handleClearLog(day)}
-                        disabled={logging === day.date}
-                        title="Undo"
-                        style={{
-                          background: 'transparent',
-                          border: '1px solid var(--border)',
-                          borderRadius: 6,
-                          color: 'var(--text-muted)',
-                          padding: '4px 7px',
-                          fontSize: 11,
-                          cursor: 'pointer',
-                          lineHeight: 1,
-                        }}
-                      >
-                        <Undo2 size={12} />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
+        </div>
+      )}
+
+      {!plan && !loading && isPastWeek && (
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '24px 20px',
+          color: 'var(--text-muted)',
+          fontSize: 13,
+          textAlign: 'center',
+        }}>
+          No plan was recorded for this week.
+        </div>
+      )}
+
+      {!plan && !loading && !isPastWeek && (
+        <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+          No plan found for this week.
         </div>
       )}
     </div>

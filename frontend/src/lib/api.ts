@@ -79,6 +79,7 @@ export interface PlanDay {
   date: string
   type: string
   distance_km: number
+  rationale?: string
   duration_minutes: number
   pace_zone: string | null
   description: string
@@ -162,6 +163,7 @@ export interface RunningConfigRequest {
   preferences_user_set?: boolean
   training_goal?: string | null
   goal_target_time_seconds?: number | null
+  regenerate?: boolean
 }
 
 export interface ClassifyRequest {

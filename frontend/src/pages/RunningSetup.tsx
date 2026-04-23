@@ -1050,6 +1050,7 @@ function Step5({
   config,
   onEdit,
   onConfirm,
+  isEditing,
   saving,
 }: {
   config: {
@@ -1075,7 +1076,8 @@ function Step5({
     abilityLevelForPreview: string
   }
   onEdit: () => void
-  onConfirm: () => void
+  onConfirm: (regenerate: boolean) => void
+  isEditing: boolean
   saving: boolean
 }) {
   const distLabel = DISTANCES.find(d => d.id === config.targetDistance)?.label || config.targetDistance
@@ -1181,11 +1183,34 @@ function Step5({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button style={btnSecondary} onClick={onEdit}>← Edit</button>
-        <button style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={onConfirm}>
-          {saving ? 'Generating...' : 'Generate my plan →'}
-        </button>
+        {isEditing ? (
+          <>
+            <button
+              style={{ ...btnSecondary, opacity: saving ? 0.6 : 1 }}
+              disabled={saving}
+              onClick={() => onConfirm(false)}
+            >
+              {saving ? 'Saving...' : 'Save & keep plan'}
+            </button>
+            <button
+              style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}
+              disabled={saving}
+              onClick={() => onConfirm(true)}
+            >
+              {saving ? 'Generating...' : 'Save & regenerate →'}
+            </button>
+          </>
+        ) : (
+          <button
+            style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}
+            disabled={saving}
+            onClick={() => onConfirm(true)}
+          >
+            {saving ? 'Generating...' : 'Generate my plan →'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -1239,6 +1264,7 @@ export default function RunningSetup() {
   const [planStartDate, setPlanStartDate] = useState(nextMonday())
 
   const [saving, setSaving] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   const totalSteps = trainingGoal === 'fitness' ? 5 : 6
   // step 6 is the 5th position in the fitness flow (step 5 is skipped)
@@ -1254,6 +1280,7 @@ export default function RunningSetup() {
       setProfileWeeklyHours(profile.weekly_training_hours)
 
       if (config) {
+        setIsEditing(true)
         if (config.training_goal) setTrainingGoal(config.training_goal)
         if (config.goal_target_time_seconds) setGoalTargetTimeSeconds(config.goal_target_time_seconds)
         setTargetDistance(config.target_distance)
@@ -1351,7 +1378,7 @@ export default function RunningSetup() {
     }
   }
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (regenerate: boolean) => {
     setSaving(true)
     try {
       const effectiveRaceDate = (hasRace || trainingGoal === 'beat_time') ? raceDate : null
@@ -1380,6 +1407,7 @@ export default function RunningSetup() {
         preferences_user_set: preferencesUserSet,
         training_goal: trainingGoal || null,
         goal_target_time_seconds: trainingGoal === 'beat_time' ? goalTargetTimeSeconds : null,
+        regenerate,
       })
       navigate('/running')
     } catch (e: any) {
@@ -1518,6 +1546,7 @@ export default function RunningSetup() {
           }}
           onEdit={() => setStep(trainingGoal === 'fitness' ? 4 : 5)}
           onConfirm={handleConfirm}
+          isEditing={isEditing}
           saving={saving}
         />
       )}
