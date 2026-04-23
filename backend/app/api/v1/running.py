@@ -62,6 +62,10 @@ class RunningConfigRequest(BaseModel):
     preferences_user_set: bool = False
     training_goal: str | None = None
     goal_target_time_seconds: int | None = None
+    returning_from_break: bool = False
+    break_reason: str | None = None
+    break_duration: str | None = None
+    prior_baseline_km: float | None = None
     regenerate: bool = True
 
 

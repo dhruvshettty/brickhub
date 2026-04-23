@@ -132,6 +132,10 @@ export interface RunningConfig {
   preferences_user_set: boolean
   training_goal?: string | null
   goal_target_time_seconds?: number | null
+  returning_from_break?: boolean
+  break_reason?: string | null
+  break_duration?: string | null
+  prior_baseline_km?: number | null
   onboarded_at: string | null
 }
 
@@ -163,6 +167,10 @@ export interface RunningConfigRequest {
   preferences_user_set?: boolean
   training_goal?: string | null
   goal_target_time_seconds?: number | null
+  returning_from_break?: boolean
+  break_reason?: string | null
+  break_duration?: string | null
+  prior_baseline_km?: number | null
   regenerate?: boolean
 }
 

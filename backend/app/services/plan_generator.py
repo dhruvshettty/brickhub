@@ -117,7 +117,48 @@ def _running_config_context(config: dict, today: date) -> str:
         lines.append(training_goal_line)
     if goal_time_line:
         lines.append(goal_time_line)
-    return "\n".join(lines) + aerobic_note + terrain_note + primary_note + user_set_note
+
+    break_note = ""
+    if config.get("returning_from_break"):
+        reason = config.get("break_reason") or "unspecified"
+        duration = config.get("break_duration") or "unspecified"
+        prior_km = config.get("prior_baseline_km")
+
+        ability_factor = {"beginner": 0.40, "intermediate": 0.60, "advanced": 0.75, "elite": 0.85}
+        duration_factor = {"under_1_month": 0.90, "1_3_months": 0.70, "3_6_months": 0.50, "over_6_months": 0.30}
+        injury_cap = 0.50 if reason in ("injury", "illness") else 1.0
+        current_km = config.get("current_weekly_km") or 0
+
+        if prior_km:
+            effective_km = round(
+                prior_km
+                * ability_factor.get(config.get("ability_level", "beginner"), 0.50)
+                * duration_factor.get(duration, 0.60)
+                * injury_cap,
+                1,
+            )
+            effective_km = max(effective_km, current_km)
+
+            duration_labels = {
+                "under_1_month": "< 1 month", "1_3_months": "1–3 months",
+                "3_6_months": "3–6 months", "over_6_months": "6+ months",
+            }
+            break_note = (
+                f"\nRETURNING FROM BREAK:"
+                f"\n  Reason: {reason}"
+                f"\n  Break duration: {duration_labels.get(duration, duration)}"
+                f"\n  Prior baseline: {prior_km} km/week"
+                f"\n  Recommended week-1 volume: {effective_km} km/week (adjusted for ability level + break length)"
+                f"\n  Do not treat this athlete as a beginner — they have a real training history."
+                f"\n  Do not exceed {effective_km} km/week in week 1. Build conservatively from there."
+            )
+            if reason in ("injury", "illness"):
+                break_note += (
+                    f"\n  {reason.capitalize()} recovery: avoid high-intensity sessions in week 1."
+                    " Prioritise easy aerobic running and joint-friendly movement."
+                )
+
+    return "\n".join(lines) + aerobic_note + terrain_note + primary_note + user_set_note + break_note
 
 
 def generate_running_plan(

@@ -4,9 +4,9 @@ Tracks milestones, features, and known issues. Update this as work progresses.
 
 ---
 
-## M1 — Running + Training Effort 🔲 IN PROGRESS
+## M1 — Running Fundamentals 🔲 IN PROGRESS
 
-Everything needed to nail the running experience end-to-end, plus a solid training effort and fatigue model that all future modules build on.
+Everything needed to nail the running experience end-to-end.
 
 ### Running — Onboarding ✅ Done
 - [x] 5-step wizard: distance → ability assessment → schedule → timeline → confirm
@@ -47,12 +47,24 @@ Everything needed to nail the running experience end-to-end, plus a solid traini
 - [x] Week navigation (past weeks only; no forward navigation; past plans served from cache, never regenerated; explanatory note on why plans are week-by-week)
 - [x] Plan explanation — why each session is what it is
 
-### Training Effort & Fatigue 🔲 To Do
-- [ ] Training load score (TSS-like) calculated per session and per week
-- [ ] Fatigue trend over time (not just current week snapshot)
-- [ ] Recovery day auto-suggestion based on accumulated load
-- [ ] Effort dashboard widget (visible from main dashboard)
-- [ ] Cross-module signals improved: weight fatigue from each discipline separately
+### Running Fundamentals 🔲 To Do
+
+**Historical training context** ✅ Done
+- [x] Proactive trigger in Step 4 when `recentRuns4Weeks < 4`: "Looks like last month was quieter than usual — was this typical?" with Yes/No
+- [x] Break context form: reason (vacation / injury / illness / life / other), duration (< 1mo / 1–3mo / 3–6mo / 6+mo), prior baseline km slider
+- [x] Algorithm: `effective_start = prior_km × ability_factor × duration_factor × injury_cap`; injury/illness halve the cap; floors to current km
+- [x] Option A default: shows recommended week-1 volume with explanation; Option B "Adjust this" slider from current km to prior baseline
+- [x] Prompt injection: RETURNING FROM BREAK block with reason, duration, prior baseline, computed effective km, and injury/illness recovery note
+- [x] Bug fix: `recentRuns4Weeks === 0` auto-resets km slider to 0; km inconsistency (0 runs but km > 0) now blocks Next with a clear message
+
+**AI coach → plan control**
+- [ ] Coach can modify the current week's training plan through conversation — not just advise, but actually change sessions
+- [ ] Two-phase flow: (1) coach gathers context through normal chat (e.g. "I have my period, should I take it easy?"), (2) when coach decides an adjustment is warranted it proposes specific changes and asks the user to confirm before applying
+- [ ] On confirmation, coach calls a new `POST /coach/apply-plan-change` endpoint with a structured change intent (e.g. convert Thursday tempo → rest, reduce Friday to easy 5 km) which mutates the `WeeklyPlan` JSON in the DB
+- [ ] Each coach-initiated change is written to a new `PlanEdit` log table: `week_start`, `module`, `changed_at`, `summary` (one line of what changed), `reason` (what the user said that prompted it)
+- [ ] Calendar view shows an "Adjusted by coach" annotation inline on any day that was changed, with the reason surfaced on hover/expand — this is the persistent audit trail since chat history is capped
+- [ ] Coach is given the current week's plan as part of its system context so it can reason about specific sessions by name and date, not just in the abstract
+- [ ] Coach responses that suggest plan changes but haven't been confirmed yet show a distinct "Apply this change →" button in the chat UI rather than burying the action in prose
 
 ---
 
@@ -90,7 +102,12 @@ Pull real workout data from the watch instead of manual logging. Improve trainin
 - [ ] Map Strava activity types → `WorkoutLog` entries (`WorkoutSource.imported`)
 - [ ] HRV + sleep fields on `WorkoutLog` (from Strava or future provider)
 
-### Training Effort Improvements (builds on M1)
+### Training Effort & Fatigue (builds on Strava data)
+- [ ] Training load score (TSS-like) calculated per session and per week
+- [ ] Fatigue trend over time (not just current week snapshot)
+- [ ] Recovery day auto-suggestion based on accumulated load
+- [ ] Effort dashboard widget (visible from main dashboard)
+- [ ] Cross-module signals improved: weight fatigue from each discipline separately
 - [ ] Recovery score from HRV + sleep (Strava or provider data)
 - [ ] Actual vs planned load comparison
 - [ ] Long-term training load trend (CTL / ATL / TSB model)
@@ -98,9 +115,32 @@ Pull real workout data from the watch instead of manual logging. Improve trainin
 
 ---
 
-## M4 — Food 🔲 FUTURE
+## M4 — Training Methodology & Education 🔲 FUTURE
+
+Help athletes understand *why* their plan is structured the way it is, and let them choose a training philosophy that matches how they want to train. Education and methodology are merged — the explainer adapts to whichever method the user picks.
+
+### Training methodology choice
+- [ ] Add a methodology selector to onboarding (Step 4, training preferences section): 80/20 polarized / Norwegian double-threshold / base-first (Lydiard-style)
+- [ ] 80/20 polarized: two hard sessions per week (one threshold, one interval or long), rest easy — the default for most athletes
+- [ ] Norwegian double-threshold: two sub-maximal lactate threshold sessions per day on quality days (~90% easy overall), no true high-intensity — best for athletes who can train twice daily and have lab access or reliable HR data
+- [ ] Base-first (Lydiard-style): no intensity work for 8–12 weeks, pure aerobic volume build — suited to beginners, returning athletes, or anyone with a long runway before their race
+- [ ] Store as `training_methodology` in `running_config`; inject into Claude prompt so session types, structure, and intensity distribution match the chosen method
+- [ ] Each tile includes a short tooltip: what the method is, who it suits, and what a typical week looks like
+
+### In-app education (adapts to chosen methodology)
+- [ ] Info panel on the Running page explaining the principles behind the user's chosen methodology — not generic running advice, but specific to what they picked
+- [ ] For all methods: explain heart rate–based training, why effort feel matters more than pace, and how to gauge zones without a lab (talk test, RPE, rough HR formulas)
+- [ ] For 80/20: explain the polarization principle — why easy days need to be genuinely easy, what "Zone 2" means in practice, and how the 20% hard work drives adaptation
+- [ ] For Norwegian: explain double-threshold philosophy, why they avoid the "grey zone," and the importance of consistent lactate threshold work
+- [ ] For base-first: explain aerobic base building, why patience now pays off later, and what signs indicate readiness to add intensity
+- [ ] Link the pace zones on each session day card back to the user's HR zones so "Zone 2" isn't abstract
+
+---
+
+## M5 — Food 🔲 FUTURE
 
 Nutrition adapts to training load — what you eat tonight depends on what you're doing tomorrow.
+
 
 - [ ] Food onboarding (dietary preferences, calorie target baseline)
 - [ ] Daily calorie + macro targets driven by cross-module signals (big ride tomorrow → carb up)
@@ -111,7 +151,7 @@ Nutrition adapts to training load — what you eat tonight depends on what you'r
 
 ---
 
-## M5 — Gym 🔲 FUTURE
+## M6 — Gym 🔲 FUTURE
 
 Strength training from user-provided principles, coordinated with run/bike load.
 
@@ -123,7 +163,7 @@ Strength training from user-provided principles, coordinated with run/bike load.
 
 ---
 
-## M6 — Swimming 🔲 FUTURE
+## M7 — Swimming 🔲 FUTURE
 
 - [ ] Swimming onboarding (pool vs open water, CSS pace estimate, goal distance)
 - [ ] Yardage-based weekly plan generation

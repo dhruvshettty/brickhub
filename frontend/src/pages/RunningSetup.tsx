@@ -61,6 +61,35 @@ const DISTANCES = [
   { id: '50k', label: '50K', typical: '4:00–8:00 hr' },
 ]
 
+const BREAK_REASONS = [
+  { id: 'vacation', label: 'Vacation / travel', desc: 'Life got in the way — no injury.' },
+  { id: 'injury', label: 'Injury', desc: 'Mechanical issue that limited running.' },
+  { id: 'illness', label: 'Illness', desc: 'Sick or recovering from illness.' },
+  { id: 'life', label: 'Life circumstances', desc: 'Work, family, stress — just too busy.' },
+  { id: 'other', label: 'Other', desc: '' },
+]
+
+const BREAK_DURATIONS = [
+  { id: 'under_1_month', label: '< 1 month' },
+  { id: '1_3_months', label: '1–3 months' },
+  { id: '3_6_months', label: '3–6 months' },
+  { id: 'over_6_months', label: '6+ months' },
+]
+
+function computeEffectiveKm(
+  priorBaselineKm: number,
+  abilityLevel: string,
+  breakDuration: string,
+  breakReason: string,
+  currentWeeklyKm: number,
+): number {
+  const abilityFactor: Record<string, number> = { beginner: 0.40, intermediate: 0.60, advanced: 0.75, elite: 0.85 }
+  const durationFactor: Record<string, number> = { under_1_month: 0.90, '1_3_months': 0.70, '3_6_months': 0.50, over_6_months: 0.30 }
+  const injuryCap = (breakReason === 'injury' || breakReason === 'illness') ? 0.50 : 1.0
+  const effective = priorBaselineKm * (abilityFactor[abilityLevel] ?? 0.50) * (durationFactor[breakDuration] ?? 0.60) * injuryCap
+  return Math.max(Math.round(effective), currentWeeklyKm)
+}
+
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const DAY_LABELS: Record<string, string> = {
   monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu',
@@ -640,6 +669,15 @@ function Step3({
   setIsPrimarySport,
   preferencesUserSet,
   onPreferenceChange,
+  returningFromBreak,
+  setReturningFromBreak,
+  breakReason,
+  setBreakReason,
+  breakDuration,
+  setBreakDuration,
+  priorBaselineKm,
+  setPriorBaselineKm,
+  abilityLevel,
   onNext,
   onBack,
 }: {
@@ -660,10 +698,22 @@ function Step3({
   setIsPrimarySport: (v: boolean) => void
   preferencesUserSet: boolean
   onPreferenceChange: () => void
+  returningFromBreak: boolean
+  setReturningFromBreak: (v: boolean) => void
+  breakReason: string
+  setBreakReason: (v: string) => void
+  breakDuration: string
+  setBreakDuration: (v: string) => void
+  priorBaselineKm: number
+  setPriorBaselineKm: (v: number) => void
+  abilityLevel: string
   onNext: () => void
   onBack: () => void
 }) {
   const [prefsExpanded, setPrefsExpanded] = useState(false)
+  const [typicalMonth, setTypicalMonth] = useState<boolean | null>(returningFromBreak ? false : null)
+  const [adjustKmOpen, setAdjustKmOpen] = useState(false)
+  const [userAdjustedKm, setUserAdjustedKm] = useState(0)
 
   const toggleDay = (day: string) => {
     if (preferredDays.includes(day)) {
@@ -679,7 +729,22 @@ function Step3({
   const handlePrimaryChange = (v: boolean) => { setIsPrimarySport(v); onPreferenceChange() }
 
   const kmRequired = recentRuns4Weeks > 0 && currentWeeklyKm === 0
-  const canProceed = preferredDays.length > 0 && longRunDay !== '' && !kmRequired
+  const kmInconsistent = recentRuns4Weeks === 0 && currentWeeklyKm > 0
+  const breakContextRequired = returningFromBreak && (!breakReason || !breakDuration || priorBaselineKm <= 0)
+  const canProceed = preferredDays.length > 0 && longRunDay !== '' && !kmRequired && !kmInconsistent && !breakContextRequired
+
+  const effectiveKm = returningFromBreak && priorBaselineKm > 0 && breakDuration && breakReason
+    ? computeEffectiveKm(priorBaselineKm, abilityLevel, breakDuration, breakReason, currentWeeklyKm)
+    : 0
+
+  const handleRecentRunsChange = (v: number) => {
+    setRecentRuns4Weeks(v)
+    if (v === 0) setCurrentWeeklyKm(0)
+    if (v === 0 || v >= 4) {
+      setReturningFromBreak(false)
+      setTypicalMonth(null)
+    }
+  }
 
   const suggestionReason = recentRuns4Weeks === 0
     ? 'No recent runs — starting fresh'
@@ -701,7 +766,7 @@ function Step3({
           min={0}
           max={30}
           value={recentRuns4Weeks}
-          onChange={e => setRecentRuns4Weeks(parseInt(e.target.value))}
+          onChange={e => handleRecentRunsChange(parseInt(e.target.value))}
           style={{ width: '100%', accentColor: 'var(--accent)' }}
         />
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
@@ -733,12 +798,173 @@ function Step3({
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
           <span>0</span><span>80 km</span>
         </div>
-        {currentWeeklyKm > 0 && (
+        {currentWeeklyKm > 0 && !kmInconsistent && (
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
             We'll build your plan volume from here — no more than 10% increase per week.
           </p>
         )}
+        {kmInconsistent && (
+          <p style={{ fontSize: 12, color: '#f97316', marginTop: 6 }}>
+            You entered 0 runs but a weekly km average — set the km slider to 0 or increase your recent run count.
+          </p>
+        )}
       </div>
+
+      {/* Returning from break — proactive trigger */}
+      {recentRuns4Weeks < 4 && recentRuns4Weeks > 0 && (
+        <div style={{
+          background: 'var(--surface)',
+          border: `1px solid ${returningFromBreak ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 10,
+          padding: '16px 18px',
+          marginBottom: 28,
+        }}>
+          {typicalMonth === null && (
+            <>
+              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Looks like the last month was quieter than usual.
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+                Was this a typical period for you, or have you been less active than normal?
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  style={pill(false)}
+                  onClick={() => { setTypicalMonth(true); setReturningFromBreak(false) }}
+                >
+                  Yes, pretty typical
+                </button>
+                <button
+                  style={pill(false)}
+                  onClick={() => { setTypicalMonth(false); setReturningFromBreak(true) }}
+                >
+                  No, I've been less active
+                </button>
+              </div>
+            </>
+          )}
+
+          {typicalMonth === true && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              Got it — we'll plan from your current volume.{' '}
+              <button
+                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', padding: 0 }}
+                onClick={() => setTypicalMonth(null)}
+              >
+                Change
+              </button>
+            </p>
+          )}
+
+          {typicalMonth === false && returningFromBreak && (
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+                Tell us about the break so we can plan your return properly.{' '}
+                <button
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+                  onClick={() => { setTypicalMonth(null); setReturningFromBreak(false) }}
+                >
+                  (change)
+                </button>
+              </p>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  What caused the break?
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {BREAK_REASONS.map(r => (
+                    <button key={r.id} style={pill(breakReason === r.id)} onClick={() => setBreakReason(r.id)}>
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                {breakReason && (breakReason === 'injury' || breakReason === 'illness') && (
+                  <p style={{ fontSize: 11, color: '#f97316', marginTop: 8 }}>
+                    We'll keep week 1 conservative and avoid high-intensity sessions while you recover.
+                  </p>
+                )}
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  How long have you been less active?
+                </label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {BREAK_DURATIONS.map(d => (
+                    <button key={d.id} style={pill(breakDuration === d.id)} onClick={() => setBreakDuration(d.id)}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: effectiveKm > 0 ? 14 : 0 }}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  What was your typical weekly km before the break?{' '}
+                  <strong style={{ color: 'var(--text)' }}>
+                    {priorBaselineKm > 0 ? `~${priorBaselineKm} km` : ''}
+                  </strong>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={5}
+                  value={priorBaselineKm}
+                  onChange={e => setPriorBaselineKm(parseInt(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--accent)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span>0</span><span>120 km</span>
+                </div>
+              </div>
+
+              {effectiveKm > 0 && (
+                <div style={{
+                  background: 'rgba(99,102,241,0.07)',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                  marginTop: 4,
+                }}>
+                  <p style={{ fontSize: 13, marginBottom: 4 }}>
+                    <strong>Recommended week-1 volume: ~{effectiveKm} km</strong>
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: adjustKmOpen ? 12 : 0 }}>
+                    Based on your ability level and break length — not beginner pace, but a safe return.{' '}
+                    <button
+                      style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+                      onClick={() => { setAdjustKmOpen(v => !v); setUserAdjustedKm(effectiveKm) }}
+                    >
+                      {adjustKmOpen ? 'Use recommendation' : 'Adjust this'}
+                    </button>
+                  </p>
+                  {adjustKmOpen && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                        Week-1 target: <strong style={{ color: 'var(--text)' }}>~{userAdjustedKm} km</strong>
+                      </label>
+                      <input
+                        type="range"
+                        min={currentWeeklyKm}
+                        max={priorBaselineKm}
+                        step={5}
+                        value={userAdjustedKm}
+                        onChange={e => setUserAdjustedKm(parseInt(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--accent)' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+                        <span>Current ({currentWeeklyKm} km)</span>
+                        <span>Prior baseline ({priorBaselineKm} km)</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
@@ -882,7 +1108,7 @@ function Step3({
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <button style={btnSecondary} onClick={onBack}>← Back</button>
         <button style={btnPrimary} disabled={!canProceed} onClick={onNext}>Next →</button>
         {!canProceed && preferredDays.length > 0 && longRunDay === '' && (
@@ -890,6 +1116,9 @@ function Step3({
         )}
         {kmRequired && (
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Enter your average weekly km to continue</span>
+        )}
+        {breakContextRequired && (
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Complete the break details to continue</span>
         )}
       </div>
     </div>
@@ -1257,6 +1486,12 @@ export default function RunningSetup() {
   const [isPrimarySport, setIsPrimarySport] = useState(false)
   const [preferencesUserSet, setPreferencesUserSet] = useState(false)
 
+  // Step 4 — Break context
+  const [returningFromBreak, setReturningFromBreak] = useState(false)
+  const [breakReason, setBreakReason] = useState('')
+  const [breakDuration, setBreakDuration] = useState('')
+  const [priorBaselineKm, setPriorBaselineKm] = useState(0)
+
   // Step 5 — Timeline (skipped for fitness goal)
   const [hasRace, setHasRace] = useState<boolean | null>(null)
   const [raceDate, setRaceDate] = useState('')
@@ -1303,6 +1538,10 @@ export default function RunningSetup() {
         if (config.effort_preference) setEffortPreference(config.effort_preference)
         setIsPrimarySport(config.is_primary_sport ?? false)
         setPreferencesUserSet(config.preferences_user_set ?? false)
+        if (config.returning_from_break) setReturningFromBreak(true)
+        if (config.break_reason) setBreakReason(config.break_reason)
+        if (config.break_duration) setBreakDuration(config.break_duration)
+        if (config.prior_baseline_km) setPriorBaselineKm(config.prior_baseline_km)
       }
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -1407,6 +1646,10 @@ export default function RunningSetup() {
         preferences_user_set: preferencesUserSet,
         training_goal: trainingGoal || null,
         goal_target_time_seconds: trainingGoal === 'beat_time' ? goalTargetTimeSeconds : null,
+        returning_from_break: returningFromBreak,
+        break_reason: returningFromBreak ? (breakReason || null) : null,
+        break_duration: returningFromBreak ? (breakDuration || null) : null,
+        prior_baseline_km: returningFromBreak && priorBaselineKm > 0 ? priorBaselineKm : null,
         regenerate,
       })
       navigate('/running')
@@ -1501,6 +1744,15 @@ export default function RunningSetup() {
           setIsPrimarySport={setIsPrimarySport}
           preferencesUserSet={preferencesUserSet}
           onPreferenceChange={() => setPreferencesUserSet(true)}
+          returningFromBreak={returningFromBreak}
+          setReturningFromBreak={setReturningFromBreak}
+          breakReason={breakReason}
+          setBreakReason={setBreakReason}
+          breakDuration={breakDuration}
+          setBreakDuration={setBreakDuration}
+          priorBaselineKm={priorBaselineKm}
+          setPriorBaselineKm={setPriorBaselineKm}
+          abilityLevel={abilityLevel}
           onNext={handleStep4Next}
           onBack={() => setStep(3)}
         />
