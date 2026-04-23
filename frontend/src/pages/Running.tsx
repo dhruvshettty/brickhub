@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RefreshCw, Settings2, Undo2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, RunningConfig } from '../lib/api'
+import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, PlanEditEntry, RunningConfig } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 
 const PLAN_MESSAGES = [
@@ -145,6 +145,9 @@ export default function Running() {
   const [logState, setLogState] = useState<Record<string, 'done' | 'missed' | null>>({})
   const [selectedWeek, setSelectedWeek] = useState<string>(currentWeekMonday())
   const [expandedRationale, setExpandedRationale] = useState<Set<string>>(new Set())
+  const [recalibrateTooltip, setRecalibrateTooltip] = useState(false)
+  const [recalibrateConfirm, setRecalibrateConfirm] = useState(false)
+  const [editTooltip, setEditTooltip] = useState<string | null>(null)
 
   const thisWeek = currentWeekMonday()
 
@@ -199,6 +202,12 @@ export default function Running() {
   }
 
   const handleRecalibrate = async () => {
+    const hasCoachEdits = Object.keys(planData?.plan_edits ?? {}).length > 0
+    if (hasCoachEdits && !recalibrateConfirm) {
+      setRecalibrateConfirm(true)
+      return
+    }
+    setRecalibrateConfirm(false)
     setRecalibrating(true)
     try {
       await recalibrateRunning()
@@ -257,6 +266,7 @@ export default function Running() {
 
   const plan = planData?.plan
   const aiUnavailable = planData?.ai_unavailable
+  const planEdits = planData?.plan_edits ?? {}
   const preferredDays = new Set(runningConfig?.preferred_days ?? [])
   const isPastWeek = selectedWeek < thisWeek
 
@@ -376,26 +386,53 @@ export default function Running() {
             <Settings2 size={14} />
             Edit plan settings
           </button>
-          <button
-            onClick={handleRecalibrate}
-            disabled={recalibrating}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              color: 'var(--text)',
-              padding: '8px 16px',
-              fontSize: 13,
-              opacity: recalibrating ? 0.5 : 1,
-              cursor: 'pointer',
-            }}
+          <div
+            style={{ position: 'relative' }}
+            onMouseEnter={() => setRecalibrateTooltip(true)}
+            onMouseLeave={() => setRecalibrateTooltip(false)}
           >
-            <RefreshCw size={14} className={recalibrating ? 'spin' : ''} />
-            {recalibrating ? 'Recalibrating...' : 'Recalibrate week'}
-          </button>
+            <button
+              onClick={handleRecalibrate}
+              disabled={recalibrating}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                color: 'var(--text)',
+                padding: '8px 16px',
+                fontSize: 13,
+                opacity: recalibrating ? 0.5 : 1,
+                cursor: 'pointer',
+              }}
+            >
+              <RefreshCw size={14} className={recalibrating ? 'spin' : ''} />
+              {recalibrating ? 'Recalibrating...' : 'Recalibrate week'}
+            </button>
+            {recalibrateTooltip && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: 280,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '12px 14px',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                lineHeight: 1.6,
+                zIndex: 100,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+              }}>
+                <p style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>What does recalibrate do?</p>
+                <p>Looks at which sessions you've missed so far this week and rewrites the remaining days to redistribute the lost training load — so you still finish the week in a useful place even if it didn't go to plan.</p>
+                <p style={{ marginTop: 6 }}>It also factors in fatigue signals from other training you've done, so it won't pile intensity onto already tired legs.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -410,6 +447,52 @@ export default function Running() {
           fontSize: 13,
         }}>
           AI coach unavailable. {planData?.message || 'Check your ANTHROPIC_API_KEY in .env.'}
+        </div>
+      )}
+
+      {recalibrateConfirm && (
+        <div style={{
+          background: '#2a1a00',
+          border: '1px solid #5a3a00',
+          borderRadius: 'var(--radius)',
+          padding: 16,
+          marginBottom: 24,
+          fontSize: 13,
+        }}>
+          <p style={{ color: '#f97316', marginBottom: 12 }}>
+            Your coach adjusted this week's plan. Recalibrating will overwrite those changes. Continue?
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleRecalibrate}
+              style={{
+                background: '#f97316',
+                border: 'none',
+                borderRadius: 6,
+                color: 'white',
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Yes, recalibrate anyway
+            </button>
+            <button
+              onClick={() => setRecalibrateConfirm(false)}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                color: 'var(--text-muted)',
+                padding: '6px 12px',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -445,6 +528,7 @@ export default function Running() {
             {plan.days.map(day => {
               const isPreferred = preferredDays.has(getDayOfWeek(day.date))
               const rationaleOpen = expandedRationale.has(day.date)
+              const coachEdit: PlanEditEntry | undefined = planEdits[day.date]
 
               return (
                 <div
@@ -458,7 +542,6 @@ export default function Running() {
                       ? `1px solid var(--accent)`
                       : '1px solid var(--border)',
                     borderRadius: 'var(--radius)',
-                    overflow: 'hidden',
                   }}
                 >
                   <div style={{
@@ -477,6 +560,52 @@ export default function Running() {
                       )}
                       {isPreferred && day.type !== 'rest' && !isToday(day.date) && (
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>preferred</div>
+                      )}
+                      {coachEdit && (
+                        <div
+                          style={{ position: 'relative', display: 'inline-block', marginTop: 4 }}
+                          onMouseEnter={() => setEditTooltip(day.date)}
+                          onMouseLeave={() => setEditTooltip(null)}
+                        >
+                          <span style={{
+                            fontSize: 10,
+                            color: 'var(--accent)',
+                            background: 'rgba(99,102,241,0.12)',
+                            borderRadius: 4,
+                            padding: '1px 5px',
+                            cursor: 'default',
+                          }}>
+                            coach edit
+                          </span>
+                          {editTooltip === day.date && (
+                            <div style={{
+                              position: 'absolute',
+                              top: 'calc(100% + 6px)',
+                              left: 0,
+                              width: 240,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 8,
+                              padding: '10px 12px',
+                              fontSize: 11,
+                              color: 'var(--text-muted)',
+                              lineHeight: 1.5,
+                              zIndex: 100,
+                              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                            }}>
+                              <p style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                                Changed by coach
+                              </p>
+                              <p style={{ marginBottom: 6 }}>{coachEdit.reason}</p>
+                              <p style={{ opacity: 0.7 }}>
+                                Was: {capitalise(coachEdit.original_session.type)}
+                                {(coachEdit.original_session.distance_km ?? 0) > 0
+                                  ? ` · ${coachEdit.original_session.distance_km} km`
+                                  : ''}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 

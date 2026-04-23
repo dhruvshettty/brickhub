@@ -58,13 +58,25 @@ Everything needed to nail the running experience end-to-end.
 - [x] Bug fix: `recentRuns4Weeks === 0` auto-resets km slider to 0; km inconsistency (0 runs but km > 0) now blocks Next with a clear message
 
 **AI coach → plan control**
-- [ ] Coach can modify the current week's training plan through conversation — not just advise, but actually change sessions
-- [ ] Two-phase flow: (1) coach gathers context through normal chat (e.g. "I have my period, should I take it easy?"), (2) when coach decides an adjustment is warranted it proposes specific changes and asks the user to confirm before applying
-- [ ] On confirmation, coach calls a new `POST /coach/apply-plan-change` endpoint with a structured change intent (e.g. convert Thursday tempo → rest, reduce Friday to easy 5 km) which mutates the `WeeklyPlan` JSON in the DB
-- [ ] Each coach-initiated change is written to a new `PlanEdit` log table: `week_start`, `module`, `changed_at`, `summary` (one line of what changed), `reason` (what the user said that prompted it)
-- [ ] Calendar view shows an "Adjusted by coach" annotation inline on any day that was changed, with the reason surfaced on hover/expand — this is the persistent audit trail since chat history is capped
-- [ ] Coach is given the current week's plan as part of its system context so it can reason about specific sessions by name and date, not just in the abstract
-- [ ] Coach responses that suggest plan changes but haven't been confirmed yet show a distinct "Apply this change →" button in the chat UI rather than burying the action in prose
+
+Design decisions (finalised):
+- Coach only proposes a plan change when the user explicitly gives a reason — it does not proactively offer. It may also push back and encourage the user to complete a session if the reason doesn't warrant a change.
+- Change proposal shown as an inline diff card inside the coach's message bubble — compact before/after table for each affected day, with a confirm button at the bottom of the card.
+- Coach can change anything in the current week only (swap type, adjust distance, add/remove sessions, change the long run) — same authority as a real coach, constrained to this week.
+- Coach gets the current week's running plan injected into its system context (sessions by date, type, distance, status). No cross-module context in v1.
+- Single LLM call: Claude returns either normal prose or a JSON block with `plan_change` when it wants to propose a change. Backend detects and splits into `{response, plan_change}`.
+- Recalibrate collision: if coach changes exist on the current week and the user hits recalibrate, show a confirmation warning before overwriting.
+- Audit trail: minimal "Adjusted by coach" label on the calendar day card; tooltip on hover shows what the session was before and the reason the coach changed it.
+- Undo: user goes back to the coach and asks to revert — no one-click undo in v1.
+
+Tasks:
+- [x] Add `PlanEdit` table: `id`, `module`, `week_start`, `date` (affected day), `changed_at`, `original_session` (JSON snapshot), `new_session` (JSON snapshot), `reason` (one sentence from the coach's rationale)
+- [x] `POST /running/apply-plan-change`: validates change intent, mutates `WeeklyPlan.plan_json` for the affected days, writes `PlanEdit` rows, returns updated plan
+- [x] Update `POST /coach/message`: inject current week's running plan (all days with status) into system context; detect `<plan_change>…</plan_change>` block in Claude response and return `{response, plan_change}` alongside normal `{response}`
+- [x] Update coach system prompt: instruct Claude to think carefully before proposing a change — push back if the reason is vague; when a change is warranted, return a `<plan_change>` JSON block alongside prose; only affect today or future days
+- [x] Frontend `CoachPanel`: render inline diff card when `plan_change` is present in the response; confirm/dismiss buttons; "Plan updated" confirmation after applying; `onPlanChanged` callback
+- [x] Frontend `Running.tsx`: show "coach edit" badge on day cards that have a `PlanEdit` entry; tooltip on hover shows original session + reason
+- [x] Frontend `Running.tsx`: recalibrate confirmation dialog when coach edits exist on the current week; user must confirm before recalibrate overwrites coach changes
 
 ---
 

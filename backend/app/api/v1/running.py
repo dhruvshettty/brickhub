@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.module_config import ModuleConfig
 from app.models.plan import WeeklyPlan
+from app.models.plan_edit import PlanEdit
 from app.models.profile import Profile
 from app.models.workout import ModuleType, WorkoutLog, WorkoutSource
 from app.services.claude_service import ClaudeUnavailableError, get_claude_service
@@ -67,6 +68,16 @@ class RunningConfigRequest(BaseModel):
     break_duration: str | None = None
     prior_baseline_km: float | None = None
     regenerate: bool = True
+
+
+class PlanChangeEntry(BaseModel):
+    date: str
+    new_session: dict
+
+
+class ApplyPlanChangeRequest(BaseModel):
+    reason: str
+    changes: list[PlanChangeEntry]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -138,6 +149,24 @@ def _day_logs_for_week(db: Session, week_start: date) -> dict[str, str]:
     }
 
 
+def _plan_edits_for_week(db: Session, week_start: date) -> dict[str, dict]:
+    """Return {date_str: {original_session, new_session, reason, changed_at}} for coach edits."""
+    edits = db.query(PlanEdit).filter(
+        PlanEdit.module == "running",
+        PlanEdit.week_start == week_start,
+    ).order_by(PlanEdit.changed_at.asc()).all()
+    # Last edit per day wins
+    result = {}
+    for e in edits:
+        result[e.date.isoformat()] = {
+            "original_session": e.original_session,
+            "new_session": e.new_session,
+            "reason": e.reason,
+            "changed_at": e.changed_at.isoformat(),
+        }
+    return result
+
+
 @router.get("/plan")
 def get_running_plan(week_start: date | None = None, db: Session = Depends(get_db)):
     if week_start is None:
@@ -145,6 +174,7 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
         week_start = today - timedelta(days=today.weekday())
 
     day_logs = _day_logs_for_week(db, week_start)
+    plan_edits = _plan_edits_for_week(db, week_start)
 
     plan = db.query(WeeklyPlan).filter(
         WeeklyPlan.module == "running",
@@ -152,29 +182,85 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
     ).first()
 
     if plan:
-        return {"plan": plan.plan_json, "ai_unavailable": False, "day_logs": day_logs}
+        return {"plan": plan.plan_json, "ai_unavailable": False, "day_logs": day_logs, "plan_edits": plan_edits}
 
     # Never generate a plan retroactively for past weeks — what's stored is the record.
     today = date.today()
     current_week_start = today - timedelta(days=today.weekday())
     if week_start < current_week_start:
-        return {"plan": None, "ai_unavailable": False, "day_logs": day_logs}
+        return {"plan": None, "ai_unavailable": False, "day_logs": day_logs, "plan_edits": plan_edits}
 
     profile = _get_or_create_profile(db)
     try:
         claude = get_claude_service()
         plan_json = generate_running_plan(db, claude, profile, week_start)
         save_plan(db, "running", week_start, plan_json)
-        return {"plan": plan_json, "ai_unavailable": False, "day_logs": day_logs}
+        return {"plan": plan_json, "ai_unavailable": False, "day_logs": day_logs, "plan_edits": plan_edits}
     except ClaudeUnavailableError:
         return {
             "plan": None,
             "ai_unavailable": True,
             "message": "AI coach unavailable. Set your ANTHROPIC_API_KEY in .env and restart.",
             "day_logs": {},
+            "plan_edits": {},
         }
     except EnvironmentError as e:
-        return {"plan": None, "ai_unavailable": True, "message": str(e), "day_logs": {}}
+        return {"plan": None, "ai_unavailable": True, "message": str(e), "day_logs": {}, "plan_edits": {}}
+
+
+@router.post("/apply-plan-change")
+def apply_plan_change(req: ApplyPlanChangeRequest, db: Session = Depends(get_db)):
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+
+    plan = db.query(WeeklyPlan).filter(
+        WeeklyPlan.module == "running",
+        WeeklyPlan.week_start == week_start,
+    ).first()
+
+    if not plan:
+        raise HTTPException(404, "No plan found for the current week.")
+
+    plan_days: list[dict] = list(plan.plan_json.get("days", []))
+
+    for change in req.changes:
+        change_date = change.date
+        # Only allow changes to today or future days
+        if change_date < today.isoformat():
+            continue
+
+        original = next((d for d in plan_days if d.get("date") == change_date), None)
+        if original is None:
+            continue
+
+        # Write PlanEdit record
+        db.add(PlanEdit(
+            module="running",
+            week_start=week_start,
+            date=date.fromisoformat(change_date),
+            original_session=dict(original),
+            new_session=change.new_session,
+            reason=req.reason,
+        ))
+
+        # Clear any existing workout log for this date so training signals
+        # don't count the old session the coach just replaced
+        planned_dt = datetime.combine(date.fromisoformat(change_date), datetime.min.time())
+        db.query(WorkoutLog).filter(
+            WorkoutLog.module == ModuleType.running,
+            WorkoutLog.planned_at == planned_dt,
+        ).delete()
+
+        # Mutate the plan
+        idx = plan_days.index(original)
+        plan_days[idx] = change.new_session
+
+    plan.plan_json = {**plan.plan_json, "days": plan_days}
+    db.commit()
+    db.refresh(plan)
+
+    plan_edits = _plan_edits_for_week(db, week_start)
+    return {"plan": plan.plan_json, "plan_edits": plan_edits, "applied": True}
 
 
 @router.post("/log")

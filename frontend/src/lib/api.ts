@@ -30,6 +30,11 @@ export const clearWorkoutLog = (date: string) =>
   request(`/running/log/${date}`, { method: 'DELETE' })
 export const recalibrateRunning = () =>
   request('/running/recalibrate', { method: 'POST' })
+export const applyPlanChange = (data: ApplyPlanChangeRequest) =>
+  request<{ plan: PlanResponse['plan']; plan_edits: PlanResponse['plan_edits']; applied: boolean }>(
+    '/running/apply-plan-change',
+    { method: 'POST', body: JSON.stringify(data) },
+  )
 export const getRunningConfig = () =>
   request<RunningConfigResponse>('/running/config')
 export const saveRunningConfig = (data: RunningConfigRequest) =>
@@ -85,6 +90,13 @@ export interface PlanDay {
   description: string
 }
 
+export interface PlanEditEntry {
+  original_session: PlanDay
+  new_session: PlanDay
+  reason: string
+  changed_at: string
+}
+
 export interface PlanResponse {
   plan: {
     week_start: string
@@ -96,6 +108,7 @@ export interface PlanResponse {
   ai_unavailable: boolean
   message?: string
   day_logs: Record<string, 'done' | 'missed'>
+  plan_edits: Record<string, PlanEditEntry>
 }
 
 export interface CoachMessage {
@@ -104,9 +117,29 @@ export interface CoachMessage {
   content: string
 }
 
+export interface PlanChangeSession {
+  date: string
+  type: string
+  distance_km: number
+  duration_minutes: number
+  pace_zone: string | null
+  description: string
+}
+
+export interface PlanChange {
+  reason: string
+  changes: Array<{ date: string; new_session: PlanChangeSession; original_session?: PlanChangeSession }>
+}
+
 export interface CoachResponse {
   response: string
   ai_unavailable: boolean
+  plan_change?: PlanChange | null
+}
+
+export interface ApplyPlanChangeRequest {
+  reason: string
+  changes: Array<{ date: string; new_session: PlanChangeSession }>
 }
 
 export interface RunningConfig {
