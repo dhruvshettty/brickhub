@@ -1,8 +1,99 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RefreshCw, Settings2 } from 'lucide-react'
 import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, PlanDay, PlanResponse, RunningConfig } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
+
+const PLAN_MESSAGES = [
+  'Analysing your fitness profile…',
+  'Calculating weekly mileage…',
+  'Balancing easy and hard sessions…',
+  'Scheduling your long run…',
+  'Checking terrain preferences…',
+  'Locking in rest days…',
+  'Almost there…',
+]
+
+function PlanGeneratingScreen() {
+  const [msgIdx, setMsgIdx] = useState(0)
+  const [progress, setProgress] = useState(0)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setMsgIdx(i => (i + 1) % PLAN_MESSAGES.length)
+      setProgress(p => Math.min(p + 100 / PLAN_MESSAGES.length, 95))
+    }, 1800)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [])
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      minHeight: '60vh', gap: 32,
+    }}>
+      {/* Running figure SVG animation */}
+      <div style={{ position: 'relative', width: 120, height: 80 }}>
+        <style>{`
+          @keyframes run-body { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+          @keyframes run-arm-f { 0%,100%{transform:rotate(-30deg)} 50%{transform:rotate(30deg)} }
+          @keyframes run-arm-b { 0%,100%{transform:rotate(30deg)} 50%{transform:rotate(-30deg)} }
+          @keyframes run-leg-f { 0%,100%{transform:rotate(-40deg)} 50%{transform:rotate(40deg)} }
+          @keyframes run-leg-b { 0%,100%{transform:rotate(40deg)} 50%{transform:rotate(-40deg)} }
+          @keyframes shadow-pulse { 0%,100%{transform:scaleX(1);opacity:0.3} 50%{transform:scaleX(0.7);opacity:0.15} }
+          .run-figure { animation: run-body 0.55s ease-in-out infinite; transform-origin: center; }
+          .run-arm-f { animation: run-arm-f 0.55s ease-in-out infinite; transform-origin: 58px 28px; }
+          .run-arm-b { animation: run-arm-b 0.55s ease-in-out infinite; transform-origin: 58px 28px; }
+          .run-leg-f { animation: run-leg-f 0.55s ease-in-out infinite; transform-origin: 60px 46px; }
+          .run-leg-b { animation: run-leg-b 0.55s ease-in-out infinite; transform-origin: 60px 46px; }
+          .run-shadow { animation: shadow-pulse 0.55s ease-in-out infinite; transform-origin: 60px 72px; }
+        `}</style>
+        <svg viewBox="0 0 120 80" width="120" height="80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          {/* Shadow */}
+          <ellipse className="run-shadow" cx="60" cy="72" rx="18" ry="4" fill="var(--text-muted)" opacity="0.25" />
+          <g className="run-figure">
+            {/* Head */}
+            <circle cx="60" cy="14" r="7" fill="var(--accent)" />
+            {/* Body */}
+            <line x1="60" y1="21" x2="60" y2="46" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" />
+            {/* Back arm */}
+            <line className="run-arm-b" x1="58" y1="28" x2="44" y2="38" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
+            {/* Front arm */}
+            <line className="run-arm-f" x1="58" y1="28" x2="72" y2="36" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
+            {/* Back leg */}
+            <line className="run-leg-b" x1="60" y1="46" x2="46" y2="64" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
+            {/* Front leg */}
+            <line className="run-leg-f" x1="60" y1="46" x2="74" y2="62" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" />
+          </g>
+        </svg>
+      </div>
+
+      <div style={{ textAlign: 'center', maxWidth: 320 }}>
+        <p style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>
+          Building your training plan
+        </p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', minHeight: 20 }}>
+          {PLAN_MESSAGES[msgIdx]}
+        </p>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ width: 240, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          width: `${progress}%`,
+          background: 'var(--accent)',
+          borderRadius: 2,
+          transition: 'width 1.6s ease',
+        }} />
+      </div>
+
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>
+        This takes 10–20 seconds
+      </p>
+    </div>
+  )
+}
 
 const RUN_TYPE_COLOR: Record<string, string> = {
   easy: '#22c55e',
@@ -108,7 +199,7 @@ export default function Running() {
     }
   }
 
-  if (loading) return <div style={{ color: 'var(--text-muted)' }}>Generating your running plan...</div>
+  if (loading) return <PlanGeneratingScreen />
   if (error) return <div style={{ color: 'var(--red)' }}>{error}</div>
 
   const plan = planData?.plan
