@@ -249,8 +249,6 @@ function Step2({
   setBestTimeSeconds,
   effortScore,
   setEffortScore,
-  recentRunsNoRace,
-  setRecentRunsNoRace,
   classifyResult,
   classifying,
   onNext,
@@ -263,8 +261,6 @@ function Step2({
   setBestTimeSeconds: (v: number) => void
   effortScore: number
   setEffortScore: (v: number) => void
-  recentRunsNoRace: number
-  setRecentRunsNoRace: (v: number) => void
   classifyResult: ClassifyResult | null
   classifying: boolean
   onNext: () => void
@@ -333,19 +329,35 @@ function Step2({
 
           <div style={{ marginBottom: 8 }}>
             <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
-              How hard did you push? {effortScore}/10
+              Rate of Perceived Exertion (RPE) — how hard was that race?
             </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 80 }}>easy stroll</span>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={effortScore}
-                onChange={e => setEffortScore(parseInt(e.target.value))}
-                style={{ flex: 1, accentColor: 'var(--accent)' }}
-              />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 80, textAlign: 'right' }}>absolute max</span>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={effortScore}
+              onChange={e => setEffortScore(parseInt(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--accent)', marginBottom: 6 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+              <span>1</span><span>10</span>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              <strong style={{ color: 'var(--text)' }}>RPE {effortScore}</strong>
+              {' — '}
+              {[
+                '', // 0 unused
+                'Very light — barely any effort, could do this all day',
+                'Light — easy breathing, full conversation possible',
+                'Moderate — comfortable, slightly elevated breathing',
+                'Somewhat hard — breathing harder, still talkable',
+                'Hard — noticeably breathless, short sentences only',
+                'Hard — breathing heavy, can manage a few words',
+                'Very hard — difficult to speak, near your limit',
+                'Very hard — gasping, could not maintain much longer',
+                'Near maximum — barely able to continue',
+                'Maximum effort — all out, nothing left in the tank',
+              ][effortScore]}
             </div>
           </div>
 
@@ -364,25 +376,9 @@ function Step2({
       )}
 
       {hasPreviousRace === false && (
-        <div style={{ marginBottom: 24 }}>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-            No problem — we'll start you at Beginner level. How many runs per week have you been doing recently?
-          </p>
-          <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
-            Runs per week: <strong style={{ color: 'var(--text)' }}>{recentRunsNoRace}</strong>
-          </label>
-          <input
-            type="range"
-            min={0}
-            max={7}
-            value={recentRunsNoRace}
-            onChange={e => setRecentRunsNoRace(parseInt(e.target.value))}
-            style={{ width: '100%', accentColor: 'var(--accent)' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
-            <span>0</span><span>7</span>
-          </div>
-        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>
+          No problem — we'll start you at Beginner level. You can share your training history in the next step.
+        </p>
       )}
 
       <div style={{ display: 'flex', gap: 12 }}>
@@ -882,7 +878,6 @@ export default function RunningSetup() {
   const [hasPreviousRace, setHasPreviousRace] = useState<boolean | null>(null)
   const [bestTimeSeconds, setBestTimeSeconds] = useState(0)
   const [effortScore, setEffortScore] = useState(7)
-  const [recentRunsNoRace, setRecentRunsNoRace] = useState(3)
   const [classifyResult, setClassifyResult] = useState<ClassifyResult | null>(null)
   const [classifying, setClassifying] = useState(false)
   const [abilityLevel, setAbilityLevel] = useState('beginner')
@@ -979,7 +974,6 @@ export default function RunningSetup() {
     if (!hasPreviousRace) {
       setAbilityLevel('beginner')
       setAerobicBasePriority(false)
-      setRecentRuns4Weeks(recentRunsNoRace * 4)
     }
     setStep(3)
   }
@@ -1000,7 +994,7 @@ export default function RunningSetup() {
         effort_score: hasPreviousRace ? effortScore : null,
         ability_level: abilityLevel,
         aerobic_base_priority: aerobicBasePriority,
-        recent_runs_4_weeks: hasPreviousRace ? recentRuns4Weeks : recentRunsNoRace * 4,
+        recent_runs_4_weeks: recentRuns4Weeks,
         current_weekly_km: currentWeeklyKm || null,
         suggested_runs_per_week: suggestedRunsPerWeek,
         preferred_days: preferredDays,
@@ -1063,8 +1057,6 @@ export default function RunningSetup() {
           setBestTimeSeconds={setBestTimeSeconds}
           effortScore={effortScore}
           setEffortScore={setEffortScore}
-          recentRunsNoRace={recentRunsNoRace}
-          setRecentRunsNoRace={setRecentRunsNoRace}
           classifyResult={classifyResult}
           classifying={classifying}
           onNext={handleStep2Next}
