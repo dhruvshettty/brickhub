@@ -72,7 +72,3 @@ backend/     FastAPI (Python 3.11+), hot reload on port 8000
 ## Contributing
 
 Issues, ideas, and pull requests welcome: [github.com/dhruvshettty/brickhub](https://github.com/dhruvshettty/brickhub)
-
-## Strava Sync (Milestone 3)
-
-Register an app at [strava.com/settings/api](https://www.strava.com/settings/api) and add `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` to your `.env`. Once implemented, activities will sync automatically after every upload.

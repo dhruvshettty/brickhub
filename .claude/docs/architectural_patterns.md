@@ -2,120 +2,177 @@
 
 ## Cross-Module Signals (the core differentiator)
 
-Every Claude call receives a snapshot of the athlete's full training state. This is what makes brickhub different from siloed apps.
+Every Claude call receives a snapshot of the athlete's full training state.
 
-`backend/app/services/cross_module.py` — `get_signals()` computes:
-- Fatigue level (low/moderate/high) from weekly training minutes
-- Completed + missed session counts
-- Brick detection (bike + run same day)
-- Race proximity (race_week / 2_weeks / 1_month / Nd)
+`backend/app/services/cross_module.py` — `get_signals(db, profile, today)` computes:
 
-`signals_to_context_string()` formats it for prompt injection. Every plan generator, recalibrator, and coach call imports and uses both functions.
+| Signal | How computed |
+|---|---|
+| `fatigue_level` | low / moderate / high — thresholds at 150 min and 300 min total weekly training |
+| `total_training_minutes_this_week` | sum of `duration_minutes` on completed `WorkoutLog` rows this week |
+| `completed_sessions` / `missed_sessions` | WorkoutLog rows with / without `completed_at` this week |
+| `brick_yesterday` | bike + run both completed yesterday (by module type) |
+| `race_proximity` | race_week / 2_weeks / 1_month / Nd — from `running_config.race_date` |
+
+`signals_to_context_string(signals)` formats the dict as bullet lines for prompt injection. All plan generators, recalibration, and coach calls import and use both functions.
 
 **Rule:** When adding a new Claude call, always inject cross-module signals. Never generate a plan without them.
 
 ---
 
-## Claude Prompt Structure
+## Claude Service
 
-All Claude calls follow the same shape: stable context (cacheable) → dynamic context (not cached) → task instruction.
+`backend/app/services/claude_service.py` — three methods:
 
-`backend/app/services/claude_service.py`:
-- `generate_with_cache(system_parts, user_prompt)` — `system_parts` is a list of `{"text": ..., "cache": bool}`. Parts with `cache: True` get `cache_control: ephemeral` for Anthropic prompt caching.
-- `generate(system_prompt, user_prompt)` — no caching, used for one-off recalibration.
-- `chat(system_prompt, messages)` — multi-turn, uses `claude-haiku-4-5-20251001`.
+| Method | Model | Caching | Used for |
+|---|---|---|---|
+| `generate_with_cache(system_parts, user)` | Sonnet 4.6 | Yes — stable system parts get `cache_control: ephemeral` | Plan generation |
+| `generate(system, user)` | Sonnet 4.6 (overrideable) | No | One-off calls |
+| `chat(messages, system)` | Haiku 4.5 | No | Coach multi-turn chat |
 
-**Stable (cached):** persona instruction, athlete profile
-**Dynamic (not cached):** cross-module signals, recent completion rates, week-specific instructions
+`system_parts` is a list of `{"text": "...", "cache": bool}` dicts. Parts with `cache: True` are marked for Anthropic prompt caching. The first cache hit on a ≥1024-token block is a cache write; subsequent calls within the TTL are cache reads (much cheaper).
 
-See `plan_generator.py:64–77` for the canonical example.
+Cost logging: every call logs model, call_type, token counts, and estimated USD cost to uvicorn.error logger.
+
+`ClaudeUnavailableError` is the single exception for any Anthropic API failure. All callers catch it and return HTTP 200 with `{"ai_unavailable": True}`. **Never let a Claude failure crash a page.**
 
 ---
 
-## Plan Caching + Invalidation
+## Plan Generation + Caching
 
-Plans are generated once and stored in `weekly_plans` (module + week_start as natural key). On request, the cached row is returned immediately without calling Claude again.
+Plans are generated once per week and stored in `weekly_plans` (natural key: `module` + `week_start`). The next fetch returns the cached row immediately.
 
-`backend/app/services/plan_generator.py` — `save_plan()` deletes any existing row for that week/module before inserting.
+`backend/app/services/plan_generator.py`:
+- `generate_running_plan(db, claude, profile, week_start)` — builds prompt, calls Claude, parses JSON
+- `save_plan(db, module, week_start, plan_json)` — deletes existing row first, then inserts new one
 
-Invalidation is explicit: `PUT /running/config` deletes the current week's plan so the next fetch regenerates with the new config (`backend/app/api/v1/running.py:75–80`).
+**Invalidation rules:**
+- `PUT /running/config` deletes the current week's plan so the next fetch regenerates with new config
+- Re-onboarding ("Save & regenerate") also deletes the plan row — `regenerate: true` flag in `RunningConfigRequest`
+- Past weeks are **never regenerated** — if no plan row exists for a past week, return `{"plan": None}`
 
-**Rule:** When any config that affects plan generation changes, delete the affected `WeeklyPlan` row.
+**Past week guard** (in `GET /running/plan`): if `week_start < current_week_start`, return `{"plan": None, "day_logs": {}, "plan_edits": {}}` without touching Claude.
+
+---
+
+## AI Coach → Plan Control
+
+Coach chat can propose plan changes via a `<plan_change>…</plan_change>` block embedded in its response.
+
+**Flow:**
+1. `POST /coach/message` calls `coach_service.chat()` which uses `claude.chat()` (Haiku)
+2. `_parse_plan_change(text)` strips the delimiter block, returns `(clean_text, change_dict | None)`
+3. If a change exists, `coach.py` enriches each entry with `original_session` by looking up current `WeeklyPlan`
+4. Frontend `CoachPanel` renders the diff card; user confirms or dismisses
+5. `POST /running/apply-plan-change` validates, mutates `WeeklyPlan.plan_json`, writes `PlanEdit` rows, **deletes any existing `WorkoutLog` for affected dates** so training signals don't count the old session
+
+**Constraints enforced in `apply-plan-change`:**
+- Only today and future dates are processed (past dates are silently skipped)
+- Each applied change deletes the existing workout log for that date
+
+**Recalibrate collision:** if `plan_edits` has entries for the current week, `Running.tsx` shows a confirmation banner before calling `POST /running/recalibrate`.
+
+---
+
+## Plan Edits Audit Trail
+
+`PlanEdit` table (`backend/app/models/plan_edit.py`): one row per coach-applied change.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | int PK | |
+| `module` | str | always "running" in M1 |
+| `week_start` | date | Monday of the affected week |
+| `date` | date | the specific day changed |
+| `changed_at` | datetime | auto-set by DB |
+| `original_session` | JSON | snapshot of the day before the change |
+| `new_session` | JSON | what the coach proposed |
+| `reason` | str | one-sentence rationale from coach |
+
+`_plan_edits_for_week(db, week_start)` in `running.py` returns `dict[str, dict]` keyed by date string. This is returned as `plan_edits` on every `GET /running/plan` response and displayed as "coach edit" badges with hover tooltips in `Running.tsx`.
 
 ---
 
 ## Onboarding Gate Pattern
 
-Modules require completing a setup wizard before the main view loads. The gate lives in the frontend page, not the backend.
+The gate lives in the frontend, not the backend.
 
-`frontend/src/pages/Running.tsx:36–42`:
-```
-getRunningConfig() → { onboarded: false } → navigate('/running/setup')
-```
+`Running.tsx`: `getRunningConfig() → { onboarded: false } → navigate('/running/setup')`
 
-Config is stored in `module_configs` (one row per profile per module, `config_json` blob). `onboarded_at` being non-null is the flag.
+Config stored in `module_configs` (one row per profile per module, `config_json` blob). `onboarded_at` being non-null is the flag. `Dashboard.tsx` reads `running_onboarded` from `GET /dashboard/summary` to show the first-run banner and pass `locked` to `CoachPanel`.
 
-**Rule:** When adding a new module, repeat this pattern — check config on page load, redirect to `/modulename/setup` if not onboarded.
+**Rule:** When adding a new module, repeat this pattern.
 
 ---
 
-## Database Session Injection
+## Workout Log + Status
 
-FastAPI dependency injection via `Depends(get_db)` on every endpoint. Session is a generator that auto-closes.
+`WorkoutLog` table: one row per logged session. `planned_at` is the date field used for lookups (stored as datetime at midnight). `completed_at` being non-null means done; null means missed.
 
-`backend/app/core/database.py` — `get_db()` yields `SessionLocal()`, finally-closes it.
+`_day_logs_for_week(db, week_start)` returns `dict[str, 'done' | 'missed']` keyed by date string — used in both the plan response and the coach system prompt.
 
-All endpoints that touch the DB declare: `db: Session = Depends(get_db)`.
+**Important:** When a coach plan change is applied for a date, the existing `WorkoutLog` row for that date is deleted. This prevents stale "done" status from counting in training signals after the session is replaced.
+
+`DELETE /running/log/{date}` is available for manual clear from the frontend.
+
+---
+
+## Onboarding Re-entry (Edit Config)
+
+`RunningSetup.tsx` checks for existing config on mount (`getRunningConfig()`). If found, `isEditing = true`.
+
+Step 6 (confirmation) renders two buttons when editing:
+- "Save & keep plan" → `saveRunningConfig({..., regenerate: false})` — preserves current week's plan
+- "Save & regenerate →" → `saveRunningConfig({..., regenerate: true})` — deletes current plan, forces fresh generation
+
+---
+
+## Week Navigation
+
+`Running.tsx` supports navigating to past weeks (Monday-aligned). Rules:
+- No forward navigation past the current week (right chevron disabled on current week)
+- Past weeks return the cached `WeeklyPlan` row — never trigger regeneration
+- If no plan exists for a past week, "No plan recorded for this week" card is shown
+- The current week shows an explanatory note in the Week Focus card explaining why plans are week-by-week
 
 ---
 
 ## JSON Blob Storage
 
-Three tables store flexible data as JSON rather than normalised columns:
-- `weekly_plans.plan_json` — full 7-day Claude-generated plan
-- `module_configs.config_json` — module-specific onboarding answers
-- `coach_messages.context_json` — snapshot of signals at message time
+Three tables store flexible data as JSON blobs:
 
-**Rule:** Use JSON blobs for data that is read/written as a unit and not queried field-by-field. Use proper columns for anything filtered or joined on.
+| Table | Column | Contents |
+|---|---|---|
+| `weekly_plans` | `plan_json` | Full 7-day Claude-generated plan (summary, days array) |
+| `module_configs` | `config_json` | Module-specific onboarding answers |
+| `plan_edits` | `original_session` / `new_session` | PlanDay snapshots at time of coach change |
 
----
-
-## AI Unavailability Handling
-
-`ClaudeUnavailableError` is the single exception type for any Anthropic API failure (`claude_service.py`).
-
-Endpoints catch it and return `{"ai_unavailable": True, "message": "..."}` with HTTP 200 — never a 5xx. The frontend renders an orange warning banner and stays functional for logging and viewing cached plans.
-
-**Rule:** Never let a Claude failure crash a page. Always catch `ClaudeUnavailableError`, return graceful JSON, render a banner.
-
----
-
-## API Contract Ownership
-
-`frontend/src/lib/api.ts` is the single file that owns all TypeScript types and API functions. When a backend endpoint changes shape, update the types here first.
-
-Pydantic models in `backend/app/api/v1/*.py` mirror these types. FastAPI auto-generates `/docs` from them — use `/docs` to spot drifts.
+**Rule:** Use JSON blobs for data read/written as a unit and not filtered on. Use proper columns for anything queried or joined.
 
 ---
 
 ## Training Preference Precedence
 
-Each module config stores `volume_preference`, `effort_preference`, `is_primary_sport`, and `preferences_user_set`.
+Each module config stores `volume_preference`, `effort_preference`, `is_primary_sport`, `preferences_user_set`.
 
-**Auto-derivation:** When a user completes onboarding, preferences are computed from ability level (beginner → gradual/comfortable, intermediate → steady/balanced, advanced/elite → progressive/challenging). `preferences_user_set` is `false`.
+- **Auto-derived:** from ability level during onboarding (beginner → gradual/comfortable, intermediate → steady/balanced, advanced/elite → progressive/challenging). `preferences_user_set = false`.
+- **User override:** if user explicitly changes a preference, `preferences_user_set = true`. Prompt note tells Claude to respect these even if signals suggest otherwise.
+- **Primary sport:** when `is_primary_sport = true`, Claude is told this module's schedule takes precedence. Future module planners (biking, etc.) must plan around it.
 
-**User override:** If the user explicitly changes a preference in the wizard, `preferences_user_set` is set to `true`. The plan generator injects a note into the Claude prompt: *"athlete explicitly set preferences — respect these even if cross-module signals suggest otherwise."*
-
-**Primary sport:** When `is_primary_sport` is `true`, the Claude prompt is told this module's schedule takes precedence. When building other module plans (M2 biking, M3 etc.), check if any module has `is_primary_sport = true` and plan around that module's schedule rather than competing with it.
-
-**Rule:** Never auto-update preferences once `preferences_user_set = true`. Only the user can change them back.
-
-See `backend/app/services/plan_generator.py` (`_running_config_context`) for how these are injected into prompts.
+**Rule:** Never auto-update preferences once `preferences_user_set = true`.
 
 ---
 
-## Profile Singleton
+## API Contract Ownership
 
-There is no multi-user support. `_get_or_create_profile(db)` (defined in `backend/app/api/v1/settings.py`, imported by other routers) always returns the single `Profile` row, creating it if missing.
+`frontend/src/lib/api.ts` is the single source of truth for all TypeScript types and API function signatures. When a backend endpoint changes shape, update this file first.
 
-When multi-user support is added: add `user_id` FKs to all tables + auth middleware.
+FastAPI auto-generates `/docs` from Pydantic models at `http://localhost:8000/docs` — use it to spot drifts between backend and frontend types.
+
+---
+
+## Database Session + Profile Singleton
+
+FastAPI dependency injection: `db: Session = Depends(get_db)` on every endpoint that touches the DB. Session auto-closes via generator finally block.
+
+No multi-user support. `_get_or_create_profile(db)` (in `settings.py`, imported by other routers) always returns the single `Profile` row. When multi-user is added: add `user_id` FKs to all tables + auth middleware.
