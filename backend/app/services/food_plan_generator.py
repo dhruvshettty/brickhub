@@ -80,12 +80,13 @@ Return ONLY a valid JSON object. No markdown fences, no explanation.
           "macros": { "carbs_g": 0, "protein_g": 0, "fat_g": 0 },
           "ingredients": [
             { "name": "string", "quantity": "string", "unit": "string", "category": "produce|proteins|grains|dairy|pantry|other" }
-          ]
+          ],
+          "instructions": ["Step 1 — ...", "Step 2 — ..."]
         },
-        "pre_workout": { "name": "...", "timing": "60-90 min before", "calories": 0, "macros": {...}, "ingredients": [...] },
-        "post_workout": { "name": "...", "timing": "within 30 min after", "calories": 0, "macros": {...}, "ingredients": [...] },
-        "lunch": { "name": "...", "description": "...", "calories": 0, "macros": {...}, "ingredients": [...] },
-        "dinner": { "name": "...", "description": "...", "calories": 0, "macros": {...}, "ingredients": [...] },
+        "pre_workout": { "name": "...", "timing": "60-90 min before", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ..."] },
+        "post_workout": { "name": "...", "timing": "within 30 min after", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ..."] },
+        "lunch": { "name": "...", "description": "...", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ...", "Step 2 — ..."] },
+        "dinner": { "name": "...", "description": "...", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ...", "Step 2 — ..."] },
         "snacks": []
       },
       "note": "Brief note about this day's nutrition strategy"
@@ -99,6 +100,7 @@ Rules:
 - On training days, include pre_workout and post_workout.
 - All days sharing the same prep_batch MUST have the IDENTICAL dinner name and recipe.
 - Include at least 3–5 ingredients per meal with quantities and units.
+- Include 2–5 concise cooking instructions per meal in the instructions array (imperative steps, e.g. "Cook oats in 300ml water for 5 minutes"). Simple no-cook items (protein bar, banana) can have 1 step.
 - snacks is an array of meal objects (0–2 items; more on high-load days).
 - Macro math: carbs_g×4 + protein_g×4 + fat_g×9 ≈ calories (within 10%).
 - Honour dietary_preference and intolerances strictly — no exceptions.

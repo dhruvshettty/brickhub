@@ -273,6 +273,7 @@ export interface FoodMeal {
   calories: number
   macros: FoodMacros
   ingredients: FoodIngredient[]
+  instructions?: string[]
 }
 
 export interface FoodDayMeals {

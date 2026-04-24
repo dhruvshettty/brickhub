@@ -104,6 +104,7 @@ function MealCard({ meal, slot, date: dateStr, loggedIds, onLog, onUnlog }: {
   onUnlog: (id: number) => void
 }) {
   const logEntry = loggedIds.length > 0
+  const [showInstructions, setShowInstructions] = useState(false)
   const SLOT_LABELS: Record<string, string> = {
     breakfast: 'Breakfast',
     pre_workout: 'Pre-workout',
@@ -179,6 +180,33 @@ function MealCard({ meal, slot, date: dateStr, loggedIds, onLog, onUnlog }: {
           </button>
         )}
       </div>
+      {meal.instructions && meal.instructions.length > 0 && (
+        <div style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <button
+            onClick={() => setShowInstructions(v => !v)}
+            style={{
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            {showInstructions ? '▲' : '▼'} How to prepare
+          </button>
+          {showInstructions && (
+            <ol style={{ margin: '8px 0 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>
+              {meal.instructions.map((step, i) => (
+                <li key={i} style={{ marginBottom: 4 }}>{step}</li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -251,7 +279,7 @@ export default function Food() {
     }
   }
 
-  if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
+  if (loading && !generating) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
   if (generating || (planData && !planData.plan && !planData.ai_unavailable && !planData.message)) {
     return <PlanGeneratingScreen />
   }
