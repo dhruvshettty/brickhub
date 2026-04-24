@@ -30,7 +30,7 @@ Every Claude call receives a snapshot of the athlete's full training state.
 | `generate(system, user)` | Sonnet 4.6 (overrideable) | No | One-off calls |
 | `chat(messages, system)` | Haiku 4.5 | No | Coach multi-turn chat |
 
-`max_tokens` defaults to 4096. Food plan generation passes `max_tokens=16384` because a full 7-day meal plan with ingredients is ~8,000–12,000 output tokens.
+`max_tokens` defaults to 4096. Food plan generation passes `max_tokens=16384`. Only today + future days are sent to Claude (past days get Python stubs) — mid-week generation is proportionally cheaper and faster.
 
 `system_parts` is a list of `{"text": "...", "cache": bool}` dicts. Parts with `cache: True` are marked for Anthropic prompt caching. The first cache hit on a ≥1024-token block is a cache write; subsequent calls within the TTL are cache reads (much cheaper).
 

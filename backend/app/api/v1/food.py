@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta, date
 from typing import Any
 
@@ -17,6 +18,8 @@ from app.services.food_plan_generator import generate_food_plan, get_or_generate
 from app.api.v1.settings import _get_or_create_profile
 
 router = APIRouter(prefix="/food", tags=["food"])
+
+_plan_generation_lock = threading.Lock()
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -187,16 +190,25 @@ def get_food_plan(week_start: date | None = None, db: Session = Depends(get_db))
 
     try:
         claude = get_claude_service()
-        plan_json = generate_food_plan(db, claude, week_start, food_config, running_plan)
-        new_plan = WeeklyPlan(
-            module="food",
-            week_start=week_start,
-            plan_json=plan_json,
-            config_snapshot=_config_snapshot(food_config),
-        )
-        db.add(new_plan)
-        db.commit()
-        db.refresh(new_plan)
+        with _plan_generation_lock:
+            # Re-check inside lock — concurrent request may have generated while we waited
+            plan = db.query(WeeklyPlan).filter(
+                WeeklyPlan.module == "food",
+                WeeklyPlan.week_start == week_start,
+            ).first()
+            if plan:
+                return {"plan": plan.plan_json, "ai_unavailable": False, "meal_logs": meal_logs}
+
+            plan_json = generate_food_plan(db, claude, week_start, food_config, running_plan)
+            new_plan = WeeklyPlan(
+                module="food",
+                week_start=week_start,
+                plan_json=plan_json,
+                config_snapshot=_config_snapshot(food_config),
+            )
+            db.add(new_plan)
+            db.commit()
+            db.refresh(new_plan)
         return {"plan": plan_json, "ai_unavailable": False, "meal_logs": meal_logs}
     except ClaudeUnavailableError:
         return {

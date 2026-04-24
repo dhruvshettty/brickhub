@@ -268,7 +268,6 @@ export interface FoodIngredient {
 
 export interface FoodMeal {
   name: string
-  description?: string
   timing?: string
   calories: number
   macros: FoodMacros

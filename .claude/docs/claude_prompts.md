@@ -9,7 +9,7 @@ How every Claude call in brickhub is structured. Use this before reading source 
 | Use case | Model | Method | max_tokens | Why |
 |---|---|---|---|---|
 | Running plan generation | `claude-sonnet-4-6` | `generate_with_cache` | 4096 | Needs strong reasoning; stable system context is cached |
-| Food plan generation | `claude-sonnet-4-6` | `generate_with_cache` | 16384 | 7 days × 5 meals × ingredients ≈ 8,000–12,000 output tokens |
+| Food plan generation | `claude-haiku-4-5-20251001` | `generate_with_cache` | 16384 | Today + future days only (past days get Python stubs). Haiku sufficient for structured JSON fill-in task. |
 | Recalibration | `claude-haiku-4-5-20251001` | `generate_with_cache` | 4096 | Faster, cheaper; simpler reasoning |
 | Coach chat | `claude-haiku-4-5-20251001` | `chat` | 1024 | Low-latency multi-turn; no caching |
 
@@ -108,25 +108,35 @@ Meal prep frequency: every_3_days | every_2_days | daily (with batch semantics e
 Training schedule and pre-computed nutrition context for each day:
   YYYY-MM-DD: session=long, distance=18km, nutrition_context=carb_loading_day, prep_batch=1
   YYYY-MM-DD: session=rest, distance=0km, nutrition_context=recovery_day, prep_batch=1
-  ... (all 7 days)
+  ... (today + future days only — past days are stubbed in Python, not sent to Claude)
 
 Instructions:
   - Use nutrition_context for macros/meal focus (see profiles above)
   - All days with the same prep_batch MUST share the IDENTICAL dinner recipe
   - Honour dietary_preference and intolerances strictly
   - Omit pre_workout/post_workout on rest days
+  - Include 2–5 imperative cooking instructions per meal in the instructions array
 ```
+
+### Past-day stubs
+
+Days before today are never sent to Claude. `_stub_past_day()` generates a minimal entry with:
+- Targets derived from `nutrition_context` using hardcoded calorie multipliers (same ratios as the profiles)
+- `meals: {}` — empty, frontend renders nothing
+- `note: "Past day — no meal plan generated."`
+
+This means mid-week plan generation (e.g. Thursday) sends only 4 days to Claude instead of 7.
 
 ### Output validation
 
 `_parse_and_validate()`:
 1. Try `json.loads(raw)`
 2. On failure, try `re.search(r"\{.*\}", raw, re.DOTALL)` to strip prose wrapper
-3. Check `days` array present with ≥ 7 entries
+3. Check `days` array present with ≥ N entries (N = days sent to Claude, not hardcoded 7)
 4. Merge pre-computed `nutrition_context` and `prep_batch` from Python into each day (overrides Claude's values to ensure window algorithm is authoritative)
 5. On failure, raise `ValueError` — caller returns `{"ai_unavailable": True}` response
 
-Note: streaming deferred. Single synchronous call with `max_tokens=16384`. Expected latency: 30–60 seconds.
+Note: streaming deferred. Single synchronous call with `max_tokens=16384`. Expected latency: 30–60 seconds (fewer days = faster mid-week).
 
 ---
 

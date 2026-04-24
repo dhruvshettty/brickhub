@@ -140,9 +140,7 @@ function MealCard({ meal, slot, date: dateStr, loggedIds, onLog, onUnlog }: {
           </div>
         </div>
       </div>
-      {meal.description && (
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{meal.description}</div>
-      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {meal.ingredients?.slice(0, 3).map(i => i.name).join(', ')}

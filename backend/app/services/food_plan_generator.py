@@ -75,21 +75,20 @@ Return ONLY a valid JSON object. No markdown fences, no explanation.
       "meals": {
         "breakfast": {
           "name": "string",
-          "description": "string",
           "calories": 0,
           "macros": { "carbs_g": 0, "protein_g": 0, "fat_g": 0 },
           "ingredients": [
             { "name": "string", "quantity": "string", "unit": "string", "category": "produce|proteins|grains|dairy|pantry|other" }
           ],
-          "instructions": ["Step 1 — ...", "Step 2 — ..."]
+          "instructions": ["Step 1", "Step 2"]
         },
-        "pre_workout": { "name": "...", "timing": "60-90 min before", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ..."] },
-        "post_workout": { "name": "...", "timing": "within 30 min after", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ..."] },
-        "lunch": { "name": "...", "description": "...", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ...", "Step 2 — ..."] },
-        "dinner": { "name": "...", "description": "...", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1 — ...", "Step 2 — ..."] },
+        "pre_workout": { "name": "...", "timing": "60-90 min before", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1"] },
+        "post_workout": { "name": "...", "timing": "within 30 min after", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1"] },
+        "lunch": { "name": "...", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1", "Step 2"] },
+        "dinner": { "name": "...", "calories": 0, "macros": {...}, "ingredients": [...], "instructions": ["Step 1", "Step 2"] },
         "snacks": []
       },
-      "note": "Brief note about this day's nutrition strategy"
+      "note": "≤10 words: why this day's nutrition context"
     }
   ]
 }
@@ -99,8 +98,9 @@ Rules:
 - On rest days (no session), OMIT the pre_workout and post_workout keys entirely.
 - On training days, include pre_workout and post_workout.
 - All days sharing the same prep_batch MUST have the IDENTICAL dinner name and recipe.
-- Include at least 3–5 ingredients per meal with quantities and units.
-- Include 2–5 concise cooking instructions per meal in the instructions array (imperative steps, e.g. "Cook oats in 300ml water for 5 minutes"). Simple no-cook items (protein bar, banana) can have 1 step.
+- Be terse everywhere: short meal names, short ingredient names, no filler prose.
+- Include 3–5 ingredients per meal with quantities and units.
+- Include 2–3 short imperative instructions per meal (e.g. "Cook oats in 300ml water 5 min"). No-cook items need only 1 step.
 - snacks is an array of meal objects (0–2 items; more on high-load days).
 - Macro math: carbs_g×4 + protein_g×4 + fat_g×9 ≈ calories (within 10%).
 - Honour dietary_preference and intolerances strictly — no exceptions.
@@ -188,6 +188,35 @@ def _race_date_from_config(running_config: dict) -> date | None:
         return None
 
 
+def _stub_past_day(day: dict, calorie_baseline: int) -> dict:
+    """Return a minimal day entry for a past day (no meals, targets only)."""
+    context = day.get("nutrition_context", "maintenance")
+    multipliers = {
+        "carb_loading_day": 1.175,
+        "pre_workout_moderate_carb": 1.075,
+        "recovery_day": 1.05,
+        "race_morning": 0.45,
+        "post_race_recovery": 1.225,
+        "maintenance": 1.0,
+    }
+    cal = round(calorie_baseline * multipliers.get(context, 1.0))
+    return {
+        "date": day["date"],
+        "session_type": day.get("type", "rest"),
+        "session_distance_km": day.get("distance_km", 0),
+        "nutrition_context": context,
+        "prep_batch": day.get("prep_batch", 1),
+        "targets": {
+            "calories": cal,
+            "carbs_g": round(cal * 0.50 / 4),
+            "protein_g": round(cal * 0.25 / 4),
+            "fat_g": round(cal * 0.25 / 9),
+        },
+        "meals": {},
+        "note": "Past day — no meal plan generated.",
+    }
+
+
 def generate_food_plan(
     db: Session,
     claude: ClaudeService,
@@ -195,7 +224,8 @@ def generate_food_plan(
     food_config: dict,
     running_plan: dict | None,
 ) -> dict:
-    """Generate a 7-day food plan. Returns the plan as a dict."""
+    """Generate a food plan for today and future days in the week. Past days get stubs."""
+    today = date.today()
 
     # Build the 7 days skeleton from running plan or empty fallback
     days_base: list[dict] = []
@@ -207,7 +237,6 @@ def generate_food_plan(
                 "distance_km": d.get("distance_km", 0),
             })
     else:
-        # Fallback: all maintenance days
         for i in range(7):
             days_base.append({
                 "date": (week_start + timedelta(days=i)).isoformat(),
@@ -215,11 +244,8 @@ def generate_food_plan(
                 "distance_km": 0,
             })
 
-    # Extract race_date from running config stored in food_config cross-ref
-    # (food_config doesn't have race_date; it comes from the running plan metadata)
     race_date: date | None = None
     if running_plan:
-        # Try to get from running config injected by the caller
         race_date_str = food_config.get("_race_date")
         if race_date_str:
             try:
@@ -230,9 +256,27 @@ def generate_food_plan(
     days_with_context = _assign_nutrition_contexts(days_base, race_date)
     days_with_batches = _assign_prep_batches(days_with_context, food_config.get("prep_frequency", "every_3_days"))
 
-    # Check if this is a race week
-    is_race_week = any(d["nutrition_context"] in ("race_morning", "carb_loading_day", "post_race_recovery")
-                       for d in days_with_batches if d.get("nutrition_context") in ("race_morning", "post_race_recovery"))
+    calorie_baseline = food_config.get("calorie_baseline_kcal", 2200)
+    prep_frequency = food_config.get("prep_frequency", "every_3_days")
+
+    # Split: past days get stubs, today+future go to Claude
+    past_days = [d for d in days_with_batches if date.fromisoformat(d["date"]) < today]
+    future_days = [d for d in days_with_batches if date.fromisoformat(d["date"]) >= today]
+
+    past_stubs = [_stub_past_day(d, calorie_baseline) for d in past_days]
+
+    is_race_week = any(d["nutrition_context"] in ("race_morning", "post_race_recovery")
+                       for d in days_with_batches)
+
+    # If all days are in the past (shouldn't happen mid-week, but guard it)
+    if not future_days:
+        return {
+            "week_start": week_start.isoformat(),
+            "module": "food",
+            "prep_frequency": prep_frequency,
+            "race_week": is_race_week,
+            "days": past_stubs,
+        }
 
     # System prompt: cached blocks (persona + profiles + schema)
     system_parts = [
@@ -255,13 +299,10 @@ def generate_food_plan(
         },
     ]
 
-    # Dynamic user prompt
     dietary_pref = food_config.get("dietary_preference", "omnivore")
     intolerances = food_config.get("intolerances", "") or "none"
-    calorie_baseline = food_config.get("calorie_baseline_kcal", 2200)
     weight_kg = food_config.get("weight_kg")
     cuisine_pref = food_config.get("cuisine_preference", "mix")
-    prep_frequency = food_config.get("prep_frequency", "every_3_days")
 
     prep_label = {
         "daily": "daily (every meal is unique)",
@@ -269,14 +310,14 @@ def generate_food_plan(
         "every_3_days": "every 3 days (same dinner for batch 1: Mon-Wed, batch 2: Thu-Sun)",
     }.get(prep_frequency, prep_frequency)
 
-    days_summary = []
-    for d in days_with_batches:
-        days_summary.append(
-            f"  {d['date']}: session={d['type']}, distance={d['distance_km']}km, "
-            f"nutrition_context={d['nutrition_context']}, prep_batch={d['prep_batch']}"
-        )
+    days_summary = [
+        f"  {d['date']}: session={d['type']}, distance={d['distance_km']}km, "
+        f"nutrition_context={d['nutrition_context']}, prep_batch={d['prep_batch']}"
+        for d in future_days
+    ]
 
-    user_prompt = f"""Generate a 7-day food plan for the week starting {week_start.isoformat()}.
+    n_days = len(future_days)
+    user_prompt = f"""Generate a {n_days}-day food plan starting {future_days[0]['date']}.
 
 Athlete profile:
 - Dietary preference: {dietary_pref}
@@ -298,24 +339,24 @@ Instructions:
 - For rest days: omit pre_workout and post_workout; include breakfast, lunch, dinner, snacks only.
 - For training days: include pre_workout and post_workout slots.
 
-Return the full JSON object with all 7 days."""
+Return the full JSON object with all {n_days} days."""
 
     raw = claude.generate_with_cache(
         system_parts,
         user_prompt,
+        model="claude-haiku-4-5-20251001",
         call_type="food_plan_generation",
         max_tokens=16384,
     )
 
-    # Parse and validate
-    plan_data = _parse_and_validate(raw, week_start, days_with_batches, calorie_baseline)
+    plan_data = _parse_and_validate(raw, week_start, future_days, calorie_baseline)
 
     return {
         "week_start": week_start.isoformat(),
         "module": "food",
         "prep_frequency": prep_frequency,
         "race_week": is_race_week,
-        "days": plan_data["days"],
+        "days": past_stubs + plan_data["days"],
     }
 
 
@@ -345,7 +386,7 @@ def _parse_and_validate(raw: str, week_start: date, days_with_meta: list[dict], 
     expected_dates = {d["date"] for d in days_with_meta}
     returned_dates = {d.get("date") for d in data["days"] if d.get("date")}
 
-    if not returned_dates.issuperset(expected_dates) and len(data["days"]) < 7:
+    if not returned_dates.issuperset(expected_dates) and len(data["days"]) < len(days_with_meta):
         raise ValueError(
             f"Food plan missing days. Expected {sorted(expected_dates)}, got {sorted(returned_dates)}"
         )
