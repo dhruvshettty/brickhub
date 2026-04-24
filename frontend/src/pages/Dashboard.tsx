@@ -4,6 +4,15 @@ import { getDashboardSummary, DashboardSummary } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 import CoachPanel from '../components/CoachPanel'
 
+const CONTEXT_LABEL: Record<string, { label: string; color: string }> = {
+  carb_loading_day: { label: 'Carb-loading day', color: '#3b82f6' },
+  pre_workout_moderate_carb: { label: 'Pre-workout carbs', color: '#f97316' },
+  recovery_day: { label: 'Recovery day', color: '#22c55e' },
+  maintenance: { label: 'Maintenance', color: 'var(--text-muted)' },
+  race_morning: { label: 'Race morning', color: '#a855f7' },
+  post_race_recovery: { label: 'Post-race recovery', color: '#ec4899' },
+}
+
 const RUN_TYPE_COLOR: Record<string, string> = {
   easy: '#22c55e',
   tempo: '#f97316',
@@ -126,7 +135,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
         {/* Today's run */}
         <Card>
           <CardTitle>Today's Run</CardTitle>
@@ -192,6 +201,68 @@ export default function Dashboard() {
               </div>
             )
           })}
+        </Card>
+
+        {/* Today's nutrition */}
+        <Card>
+          <CardTitle>Today's Nutrition</CardTitle>
+          {data.today_food ? (() => {
+            const ctx = CONTEXT_LABEL[data.today_food.nutrition_context] || CONTEXT_LABEL.maintenance
+            const pct = data.today_food.targets.calories > 0
+              ? Math.min((data.logged_calories_today / data.today_food.targets.calories) * 100, 100)
+              : 0
+            return (
+              <div>
+                <div style={{
+                  display: 'inline-block',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: ctx.color,
+                  background: `${ctx.color}18`,
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  marginBottom: 10,
+                }}>
+                  {ctx.label}
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 2 }}>
+                  {data.logged_calories_today > 0
+                    ? `${Math.round(data.logged_calories_today)} / ${data.today_food.targets.calories}`
+                    : data.today_food.targets.calories} kcal
+                </div>
+                {pct > 0 && (
+                  <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 8, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${pct}%`,
+                      background: 'var(--accent)',
+                      borderRadius: 2,
+                    }} />
+                  </div>
+                )}
+                {data.today_food.note && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{data.today_food.note}</div>
+                )}
+                <Link to="/food" style={{ fontSize: 12, color: 'var(--accent)', display: 'block', marginTop: 8 }}>
+                  View plan →
+                </Link>
+              </div>
+            )
+          })() : (
+            <div>
+              {data.food_onboarded ? (
+                <Link to="/food" style={{ fontSize: 13 }}>
+                  Generate your food plan →
+                </Link>
+              ) : data.running_onboarded ? (
+                <Link to="/food" style={{ fontSize: 13 }}>
+                  Set up nutrition →
+                </Link>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Set up running first.</p>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Recovery / signals */}

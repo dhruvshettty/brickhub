@@ -64,10 +64,18 @@ export interface DashboardSummary {
   running_goal: string | null
   race_countdown: { days: number; distance: string; date: string } | null
   today_run: PlanDay | null
+  today_food: {
+    date: string
+    nutrition_context: string
+    targets: { calories: number; carbs_g: number; protein_g: number; fat_g: number }
+    note: string
+  } | null
+  logged_calories_today: number
   module_progress: Record<string, { completed: number; total: number }>
   signals: CrossModuleSignals
   plans_available: string[]
   running_onboarded: boolean
+  food_onboarded: boolean
 }
 
 export interface CrossModuleSignals {
@@ -205,6 +213,129 @@ export interface RunningConfigRequest {
   break_duration?: string | null
   prior_baseline_km?: number | null
   regenerate?: boolean
+}
+
+// Food
+export const getFoodConfig = () =>
+  request<FoodConfigResponse>('/food/config')
+export const saveFoodConfig = (data: FoodConfigRequest) =>
+  request<{ config: FoodConfig; saved: boolean }>('/food/config', { method: 'PUT', body: JSON.stringify(data) })
+export const getFoodPlan = (weekStart?: string) =>
+  request<FoodPlanResponse>(`/food/plan${weekStart ? `?week_start=${weekStart}` : ''}`)
+export const logMeal = (data: MealLogRequest) =>
+  request<{ id: number; logged: boolean }>('/food/log', { method: 'POST', body: JSON.stringify(data) })
+export const deleteMealLog = (id: number) =>
+  request(`/food/log/${id}`, { method: 'DELETE' })
+
+export interface FoodConfig {
+  dietary_preference: string
+  intolerances: string | null
+  prep_frequency: string
+  weight_kg: number | null
+  calorie_baseline_kcal: number
+  cuisine_preference: string | null
+  onboarded_at: string | null
+}
+
+export interface FoodConfigResponse {
+  config: FoodConfig | null
+  onboarded: boolean
+  running_onboarded: boolean
+}
+
+export interface FoodConfigRequest {
+  dietary_preference: string
+  intolerances?: string | null
+  prep_frequency: string
+  weight_kg?: number | null
+  calorie_baseline_kcal?: number
+  cuisine_preference?: string | null
+  regenerate?: boolean
+}
+
+export interface FoodMacros {
+  carbs_g: number
+  protein_g: number
+  fat_g: number
+}
+
+export interface FoodIngredient {
+  name: string
+  quantity: string
+  unit: string
+  category: string
+}
+
+export interface FoodMeal {
+  name: string
+  description?: string
+  timing?: string
+  calories: number
+  macros: FoodMacros
+  ingredients: FoodIngredient[]
+}
+
+export interface FoodDayMeals {
+  breakfast?: FoodMeal
+  pre_workout?: FoodMeal
+  post_workout?: FoodMeal
+  lunch?: FoodMeal
+  dinner?: FoodMeal
+  snacks?: FoodMeal[]
+}
+
+export interface FoodDay {
+  date: string
+  session_type: string
+  session_distance_km: number
+  nutrition_context: string
+  prep_batch: number
+  targets: {
+    calories: number
+    carbs_g: number
+    protein_g: number
+    fat_g: number
+  }
+  meals: FoodDayMeals
+  note: string
+}
+
+export interface FoodPlan {
+  week_start: string
+  module: string
+  prep_frequency: string
+  race_week: boolean
+  days: FoodDay[]
+}
+
+export interface MealLogEntry {
+  id: number
+  date: string
+  meal_slot: string
+  meal_name: string | null
+  calories: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  notes: string | null
+}
+
+export interface FoodPlanResponse {
+  plan: FoodPlan | null
+  ai_unavailable: boolean
+  message?: string
+  meal_logs: MealLogEntry[]
+}
+
+export interface MealLogRequest {
+  date: string
+  meal_slot: string
+  meal_name?: string | null
+  calories?: number | null
+  protein_g?: number | null
+  carbs_g?: number | null
+  fat_g?: number | null
+  notes?: string | null
 }
 
 export interface ClassifyRequest {

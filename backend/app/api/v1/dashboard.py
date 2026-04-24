@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.food import MealLog
 from app.models.module_config import ModuleConfig
 from app.models.plan import WeeklyPlan
 from app.models.workout import WorkoutLog
@@ -61,14 +62,43 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             except ValueError:
                 pass
 
+    # Food module data
+    food_config = db.query(ModuleConfig).filter(
+        ModuleConfig.profile_id == profile.id,
+        ModuleConfig.module == "food",
+    ).first()
+    food_onboarded = food_config is not None and bool(food_config.config_json.get("onboarded_at"))
+
+    today_food = None
+    food_plan = plans_by_module.get("food")
+    if food_plan:
+        for day in food_plan.get("days", []):
+            if day.get("date") == today.isoformat():
+                today_food = {
+                    "date": day["date"],
+                    "nutrition_context": day.get("nutrition_context", "maintenance"),
+                    "targets": day.get("targets", {}),
+                    "note": day.get("note", ""),
+                }
+                break
+
+    # Today's logged calories from meal_logs
+    logged_calories_today = 0
+    if today_food:
+        today_logs = db.query(MealLog).filter(MealLog.date == today).all()
+        logged_calories_today = sum(l.calories or 0 for l in today_logs)
+
     return {
         "today": today.isoformat(),
         "running_onboarded": running_config is not None,
+        "food_onboarded": food_onboarded,
         "week_start": week_start.isoformat(),
         "profile": {"name": profile.name},
         "race_countdown": race_countdown,
         "running_goal": running_goal,
         "today_run": today_run,
+        "today_food": today_food,
+        "logged_calories_today": logged_calories_today,
         "module_progress": {
             module: {
                 "completed": completed_by_module.get(module, 0),

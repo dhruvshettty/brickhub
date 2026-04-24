@@ -6,11 +6,12 @@ How every Claude call in brickhub is structured. Use this before reading source 
 
 ## Models in Use
 
-| Use case | Model | Method | Why |
-|---|---|---|---|
-| Plan generation | `claude-sonnet-4-6` | `generate_with_cache` | Needs strong reasoning; stable system context is cached |
-| Recalibration | `claude-haiku-4-5-20251001` | `generate_with_cache` | Faster, cheaper; recalibration is simpler reasoning |
-| Coach chat | `claude-haiku-4-5-20251001` | `chat` | Low-latency multi-turn; no caching (dynamic per message) |
+| Use case | Model | Method | max_tokens | Why |
+|---|---|---|---|---|
+| Running plan generation | `claude-sonnet-4-6` | `generate_with_cache` | 4096 | Needs strong reasoning; stable system context is cached |
+| Food plan generation | `claude-sonnet-4-6` | `generate_with_cache` | 16384 | 7 days × 5 meals × ingredients ≈ 8,000–12,000 output tokens |
+| Recalibration | `claude-haiku-4-5-20251001` | `generate_with_cache` | 4096 | Faster, cheaper; simpler reasoning |
+| Coach chat | `claude-haiku-4-5-20251001` | `chat` | 1024 | Low-latency multi-turn; no caching |
 
 ---
 
@@ -70,6 +71,62 @@ Then appended as notes (not in the list):
 ### JSON parsing
 
 Claude is instructed to return valid JSON only. Fallback: `re.search(r"\{.*\}", raw, re.DOTALL)` to strip any accidental prose wrapper.
+
+---
+
+## Food Plan Generation (`food_plan_generator.py`)
+
+**Entry point:** `generate_food_plan(db, claude, week_start, food_config, running_plan)`
+
+**Critical difference from running plan:** nutrition context is computed in Python _before_ the Claude call. Claude receives `nutrition_context` as input, not a reasoning task.
+
+### System prompt (3 parts, all cached)
+
+```
+Part 1 (cached): Persona
+  "You are an expert sports nutritionist specialising in triathlon and endurance training.
+   You understand carbohydrate periodisation, protein timing, and recovery nutrition.
+   Always return valid JSON only — no markdown fences, no explanations outside the JSON."
+
+Part 2 (cached): Nutrition context profiles
+  Detailed macro guidance per context: carb_loading_day / pre_workout_moderate_carb /
+  recovery_day / maintenance / race_morning / post_race_recovery
+  (calorie multipliers, macro ratios, example foods)
+
+Part 3 (cached): JSON output schema
+  Full FoodDay schema with meal slots, macros, ingredients structure, batch coherence rules
+```
+
+### User prompt (not cached)
+
+```
+Athlete profile:
+  dietary_preference, intolerances, calorie_baseline_kcal, weight_kg, cuisine_preference
+
+Meal prep frequency: every_3_days | every_2_days | daily (with batch semantics explained)
+
+Training schedule and pre-computed nutrition context for each day:
+  YYYY-MM-DD: session=long, distance=18km, nutrition_context=carb_loading_day, prep_batch=1
+  YYYY-MM-DD: session=rest, distance=0km, nutrition_context=recovery_day, prep_batch=1
+  ... (all 7 days)
+
+Instructions:
+  - Use nutrition_context for macros/meal focus (see profiles above)
+  - All days with the same prep_batch MUST share the IDENTICAL dinner recipe
+  - Honour dietary_preference and intolerances strictly
+  - Omit pre_workout/post_workout on rest days
+```
+
+### Output validation
+
+`_parse_and_validate()`:
+1. Try `json.loads(raw)`
+2. On failure, try `re.search(r"\{.*\}", raw, re.DOTALL)` to strip prose wrapper
+3. Check `days` array present with ≥ 7 entries
+4. Merge pre-computed `nutrition_context` and `prep_batch` from Python into each day (overrides Claude's values to ensure window algorithm is authoritative)
+5. On failure, raise `ValueError` — caller returns `{"ai_unavailable": True}` response
+
+Note: streaming deferred. Single synchronous call with `max_tokens=16384`. Expected latency: 30–60 seconds.
 
 ---
 
@@ -197,7 +254,7 @@ Parts that change per-request → `cache: False` (dynamic context):
 - Week start date
 - Coach system prompt (rebuilt entirely per message — no caching)
 
-**Cost implication:** Anthropic caches at the token boundary of the last cached block. The 3-part plan generation system prompt caches ~600–800 tokens, saving ~$0.002 per cached plan generation (meaningful at scale). Coach chat has no caching — each message pays full input cost for the system prompt.
+**Cost implication:** Anthropic caches at the token boundary of the last cached block. The running plan 3-part system prompt caches ~600–800 tokens, saving ~$0.002 per generation. Food plan 3-part system prompt caches ~1,500–2,000 tokens (nutrition profiles + schema are verbose), saving ~$0.003–0.004 per generation. Coach chat has no caching — each message pays full input cost for the system prompt.
 
 ---
 

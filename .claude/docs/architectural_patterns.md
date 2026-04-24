@@ -26,9 +26,11 @@ Every Claude call receives a snapshot of the athlete's full training state.
 
 | Method | Model | Caching | Used for |
 |---|---|---|---|
-| `generate_with_cache(system_parts, user)` | Sonnet 4.6 | Yes — stable system parts get `cache_control: ephemeral` | Plan generation |
+| `generate_with_cache(system_parts, user, max_tokens=4096)` | Sonnet 4.6 | Yes — stable system parts get `cache_control: ephemeral` | Plan generation |
 | `generate(system, user)` | Sonnet 4.6 (overrideable) | No | One-off calls |
 | `chat(messages, system)` | Haiku 4.5 | No | Coach multi-turn chat |
+
+`max_tokens` defaults to 4096. Food plan generation passes `max_tokens=16384` because a full 7-day meal plan with ingredients is ~8,000–12,000 output tokens.
 
 `system_parts` is a list of `{"text": "...", "cache": bool}` dicts. Parts with `cache: True` are marked for Anthropic prompt caching. The first cache hit on a ≥1024-token block is a cache write; subsequent calls within the TTL are cache reads (much cheaper).
 
@@ -50,8 +52,37 @@ Plans are generated once per week and stored in `weekly_plans` (natural key: `mo
 - `PUT /running/config` deletes the current week's plan so the next fetch regenerates with new config
 - Re-onboarding ("Save & regenerate") also deletes the plan row — `regenerate: true` flag in `RunningConfigRequest`
 - Past weeks are **never regenerated** — if no plan row exists for a past week, return `{"plan": None}`
+- Food follows the same invalidation pattern: `PUT /food/config` with `regenerate: true` deletes the current food plan
 
-**Past week guard** (in `GET /running/plan`): if `week_start < current_week_start`, return `{"plan": None, "day_logs": {}, "plan_edits": {}}` without touching Claude.
+**Past week guard** (in `GET /running/plan` and `GET /food/plan`): if `week_start < current_week_start`, return `{"plan": None}` without touching Claude.
+
+**`config_snapshot`** on `weekly_plans`: nullable JSON column added in migration 008. Food plans write the config snapshot at generation time. Not used for automatic invalidation yet — invalidation is explicit via `regenerate: true`.
+
+---
+
+## Food Plan Generation
+
+`backend/app/services/food_plan_generator.py` — different pattern from running plan generation:
+
+**Key difference:** nutrition context is computed in Python _before_ calling Claude. Claude receives pre-computed `nutrition_context` per day and generates meals — it does not evaluate the window algorithm itself.
+
+**Window algorithm** (`_assign_nutrition_contexts`):
+1. Race check: if `race_date` within 7 days → `carb_loading_day` (T-3, T-2), `race_morning` (T), `post_race_recovery` (T+1)
+2. Tomorrow's session: `long` (≥15 km) or `interval` → `carb_loading_day`; `tempo` → `pre_workout_moderate_carb`
+3. Yesterday's session: `long` (≥15 km) → `recovery_day`
+4. Default: `maintenance`
+
+Window algorithm only looks within the current week. Cross-week edge cases (e.g., Monday after a Sunday long run) fall back to maintenance.
+
+**No cross-module signals injection.** Food plan reads the running plan directly from `weekly_plans` — it doesn't use `get_signals()`. Running plan is passed as a parameter; if unavailable, all days default to maintenance context.
+
+**`race_date` injection:** food router reads `race_date` from the running module config and injects it into `food_config` as `_race_date` before calling the generator.
+
+**Claude call:** `generate_with_cache(system_parts, user_prompt, max_tokens=16384)`. Sonnet 4.6. Three cached system blocks: persona, nutrition profiles, JSON schema. Dynamic user block: user profile + per-day schedule with pre-computed nutrition_context.
+
+**Batch coherence:** Claude is instructed via the system prompt that all days sharing the same `prep_batch` must use the identical dinner recipe. Batch assignment is done in Python (`_assign_prep_batches`) before the Claude call.
+
+**meal_logs table** (migration 008): `meal_type` enum replaced by `meal_slot` VARCHAR. New columns: `module` (default `'food'`), `prep_batch` (int nullable), `feedback` (text nullable, reserved for future "what worked" feature).
 
 ---
 
@@ -98,8 +129,12 @@ Coach chat can propose plan changes via a `<plan_change>…</plan_change>` block
 The gate lives in the frontend, not the backend.
 
 `Running.tsx`: `getRunningConfig() → { onboarded: false } → navigate('/running/setup')`
+`Food.tsx`: `getFoodConfig() → { running_onboarded: false } → navigate('/running')` (running must be set up first)
+`Food.tsx`: `getFoodConfig() → { onboarded: false } → navigate('/food/setup')`
 
-Config stored in `module_configs` (one row per profile per module, `config_json` blob). `onboarded_at` being non-null is the flag. `Dashboard.tsx` reads `running_onboarded` from `GET /dashboard/summary` to show the first-run banner and pass `locked` to `CoachPanel`.
+Config stored in `module_configs` (one row per profile per module, `config_json` blob). `onboarded_at` being non-null is the flag. `Dashboard.tsx` reads `running_onboarded` and `food_onboarded` from `GET /dashboard/summary`.
+
+**Food dependency gate:** `PUT /food/config` returns HTTP 400 if running is not configured. The frontend also redirects to `/running` if `running_onboarded` is false. Food without a running plan is not supported — nutrition contexts depend on the running schedule.
 
 **Rule:** When adding a new module, repeat this pattern.
 
@@ -139,11 +174,12 @@ Step 6 (confirmation) renders two buttons when editing:
 
 ## JSON Blob Storage
 
-Three tables store flexible data as JSON blobs:
+Four tables store flexible data as JSON blobs:
 
 | Table | Column | Contents |
 |---|---|---|
 | `weekly_plans` | `plan_json` | Full 7-day Claude-generated plan (summary, days array) |
+| `weekly_plans` | `config_snapshot` | Config at generation time — for invalidation tracking (nullable) |
 | `module_configs` | `config_json` | Module-specific onboarding answers |
 | `plan_edits` | `original_session` / `new_session` | PlanDay snapshots at time of coach change |
 

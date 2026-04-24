@@ -1,4 +1,4 @@
-.PHONY: dev dev-native build down logs db-upgrade db-reset reset stop-native reset-module reset-all clear-plan
+.PHONY: dev dev-native build down logs db-upgrade db-reset reset stop-native reset-module reset-all clear-plan test
 
 # ── Docker targets (requires Docker Desktop) ────────────────────────────────
 
@@ -74,6 +74,9 @@ reset-module:
 	@test -n "$(m)" || (echo "Usage: make reset-module m=running" && exit 1)
 	@sqlite3 backend/brickhub.db "DELETE FROM module_configs WHERE module='$(m)'; DELETE FROM weekly_plans WHERE module='$(m)';"
 	@echo "[brickhub] Reset '$(m)' onboarding and cached plan."
+
+test: $(VENV)/bin/activate
+	@cd backend && DATABASE_URL="sqlite:///./brickhub.db" $(shell pwd)/$(VENV)/bin/pytest tests/ -v
 
 stop-native:
 	@pkill -f "uvicorn app.main:app" 2>/dev/null && echo "[brickhub] API server stopped." || echo "[brickhub] API server was not running."

@@ -80,7 +80,67 @@ Tasks:
 
 ---
 
-## M2 — Biking 🔲 NEXT
+## M2 — Food 🔲 IN PROGRESS
+
+Nutrition adapts to training load — what you eat tonight depends on what you're doing tomorrow. The meal plan is generated from the training calendar: each day's food is shaped by the session type AND the window around it (carb-load the day before a long run, recovery focus the day after).
+
+Design doc: `~/.gstack/projects/dhruvshettty-brickhub/dhruvshetty-main-design-20260425-002915.md`
+
+### Food — Prerequisite
+- [x] `race_date` already in running module's `module_configs` JSON (no separate migration needed — already in RunningConfigRequest)
+- [x] Update `CLAUDE.md`: Food = M2, Biking = M3
+
+### Food — Onboarding ✅ Done
+- [x] 4-screen onboarding wizard (FoodSetup.tsx):
+  - Screen 1: dietary preference (omnivore / vegetarian / vegan / other) + food intolerances
+  - Screen 2: meal prep frequency (daily / every 2 days / every 3 days)
+  - Screen 3: weight (kg, optional) + calorie baseline (auto-estimated as `weight_kg × 35`, user-confirmable; default 2200 kcal if skipped)
+  - Screen 4: cuisine preference (Mediterranean / Asian / Western / Mix) — soft prompt hint
+- [x] Config stored in `module_configs` (key: `food`). Snapshot fields for invalidation: `dietary_preference`, `intolerances`, `prep_frequency`, `calorie_baseline_kcal`, `weight_kg`, `cuisine_preference`
+- [x] `PUT /food/config` — save config; `regenerate: true` deletes current week's plan (same pattern as running)
+- [x] Onboarding gate on Food page — blocked until running module is configured
+
+### Food — Plan Generation ✅ Done
+- [x] Migration 008: `weekly_plans.config_snapshot` added; `meal_logs` recreated with `meal_slot`/`module`/`prep_batch`/`feedback`
+- [x] `food_plan_generator.py`: `generate_food_plan(week_start, user_config, running_plan)`
+  - Forward-looking window algorithm in Python (priority-ordered: race check → tomorrow's session → yesterday's session → default)
+  - `nutrition_context` assigned per day before calling Claude
+  - Prep batch assignment: batch 1 = Mon–Wed, batch 2 = Thu–Sun
+- [x] Claude Sonnet call with `max_tokens=16384`: cached system block (nutrition profiles + JSON schema) + dynamic user block
+- [x] JSON output validation + parse fallback (regex extraction on failure)
+- [x] `GET /food/plan?week_start=` — cached plan + meal_logs; generates if missing; past weeks return `{plan: null}`
+- [x] `ClaudeService.generate_with_cache` updated with `max_tokens` param (default 4096)
+- [x] pytest suite for window algorithm + prep batch assignment (`backend/tests/test_food_plan_generator.py`, 26 tests)
+- [x] Coach is NOT food-aware in M2 — deferred
+
+### Food — Logging ✅ Done
+- [x] `POST /food/log` — log a meal slot against a date
+- [x] `DELETE /food/log/{id}` — clear log entry
+- [x] Day detail shows logged vs. planned with macro totals + progress bars
+
+### Food — Dashboard Widget ✅ Done
+- [x] Food widget: today's calorie/macro targets + logged progress bar
+- [x] Shows `nutrition_context` label (e.g., "Carb-loading day")
+- [x] Links to food plan page
+
+### Food — Frontend ✅ Done
+- [x] `Food.tsx` page: weekly view (7-day strip) + day detail with logging buttons per meal slot
+- [x] `nutrition_context` badge on day cards (Carb-loading / Recovery / Race morning / etc.)
+- [x] Add `/food` + `/food/setup` routes in `App.tsx`, food API functions + types in `api.ts`
+
+### Food — Stretch Goals (after core is stable)
+- [ ] Grocery list: `GET /food/grocery-list?week_start=` — flatten `ingredients` arrays from plan JSON, group by category (produce / proteins / grains / dairy / pantry). Frontend: checkable list in a modal.
+- [ ] Race week protocol: special plan variant when `race_date` is within 7 days (carb-loading T-3/T-2, race morning protocol, post-race recovery)
+
+### Food — Future (deferred, add when ready)
+- [ ] **"What worked" feedback loop**: add `worked_for_session_type` + `rating` to `meal_logs`; surface top-rated meals by session type in future plan generation. The `feedback` column is reserved in M2 schema.
+- [ ] Restaurant / eating out mode: "I'm eating out tonight — what should I order?"
+- [ ] Morning session timing awareness: add `session_time` field to running plan day schema; use to trigger `pre_workout_light` context for early sessions
+- [ ] Multi-module coach context: inject food plan into `/coach/message` alongside running plan
+
+---
+
+## M3 — Biking 🔲 FUTURE
 
 Full biking experience, at feature parity with running. Biking and running plans adapt to each other in real time.
 
@@ -104,7 +164,7 @@ Full biking experience, at feature parity with running. Biking and running plans
 
 ---
 
-## M3 — Training Data Integration 🔲 FUTURE
+## M4 — Training Data Integration 🔲 FUTURE
 
 Pull real workout data from the watch instead of manual logging. Improve training effort model with actual data.
 
@@ -127,7 +187,7 @@ Pull real workout data from the watch instead of manual logging. Improve trainin
 
 ---
 
-## M4 — Training Methodology & Education 🔲 FUTURE
+## M5 — Training Methodology & Education 🔲 FUTURE
 
 Help athletes understand *why* their plan is structured the way it is, and let them choose a training philosophy that matches how they want to train. Education and methodology are merged — the explainer adapts to whichever method the user picks.
 
@@ -146,20 +206,6 @@ Help athletes understand *why* their plan is structured the way it is, and let t
 - [ ] For Norwegian: explain double-threshold philosophy, why they avoid the "grey zone," and the importance of consistent lactate threshold work
 - [ ] For base-first: explain aerobic base building, why patience now pays off later, and what signs indicate readiness to add intensity
 - [ ] Link the pace zones on each session day card back to the user's HR zones so "Zone 2" isn't abstract
-
----
-
-## M5 — Food 🔲 FUTURE
-
-Nutrition adapts to training load — what you eat tonight depends on what you're doing tomorrow.
-
-
-- [ ] Food onboarding (dietary preferences, calorie target baseline)
-- [ ] Daily calorie + macro targets driven by cross-module signals (big ride tomorrow → carb up)
-- [ ] Claude-generated meal plans (breakfast, lunch, dinner, snacks)
-- [ ] Meal logging (`MealLog` table already exists)
-- [ ] `GET /food/plan`, `POST /food/log`
-- [ ] Food widget on dashboard (today's targets + what's logged)
 
 ---
 
@@ -194,5 +240,5 @@ Strength training from user-provided principles, coordinated with run/bike load.
 
 - Docker setup exists (`docker-compose.yml`) but is deferred — native dev (`make dev-native`) is current path
 - When switching to Docker: add `alembic upgrade head` to backend Dockerfile startup
-- No test suite yet — add before M2 ships
+- Test suite added (`backend/tests/`). Run with `make test`. Currently covers food module window algorithm + prep batch assignment (26 tests). pytest added to `requirements-native.txt`.
 - No multi-user design — add `user_id` FKs to all tables + auth when ready to open-source

@@ -71,6 +71,7 @@ class ClaudeService:
         user: str,
         model: str = "claude-sonnet-4-6",
         call_type: str = "unknown",
+        max_tokens: int = 4096,
     ) -> str:
         """Generation with prompt caching on stable system context.
 
@@ -87,7 +88,7 @@ class ClaudeService:
 
             response = self.client.messages.create(
                 model=model,
-                max_tokens=4096,
+                max_tokens=max_tokens,
                 system=system_content,
                 messages=[{"role": "user", "content": user}],
             )

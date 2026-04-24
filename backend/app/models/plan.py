@@ -21,6 +21,7 @@ class WeeklyPlan(Base):
     week_start = Column(Date, nullable=False, index=True)
 
     plan_json = Column(JSON, nullable=False)  # Claude-generated plan structure
+    config_snapshot = Column(JSON, nullable=True)  # config at generation time, for invalidation
     recalibrated_at = Column(DateTime, nullable=True)  # null = original plan
 
     created_at = Column(DateTime, server_default=func.now())

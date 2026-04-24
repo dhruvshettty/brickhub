@@ -136,6 +136,114 @@ Recalibrate is blocked by a confirmation dialog when coach edits exist on the cu
 
 ---
 
+## Food Nutrition Window Algorithm
+
+`food_plan_generator.py` — `_assign_nutrition_contexts(days, race_date) → list[dict]`
+
+Priority-ordered rules evaluated **per day**. First match wins.
+
+| Priority | Condition | `nutrition_context` assigned |
+|---|---|---|
+| 1 | `race_date` set, `delta == 2 or 3` (T-3, T-2) | `carb_loading_day` |
+| 1 | `race_date` set, `delta == 0` (race day) | `race_morning` |
+| 1 | `race_date` set, `delta == -1` (day after race) | `post_race_recovery` |
+| 2 | tomorrow = `long` and distance ≥ 15 km | `carb_loading_day` |
+| 2 | tomorrow = `interval` | `carb_loading_day` |
+| 2 | tomorrow = `tempo` | `pre_workout_moderate_carb` |
+| 3 | yesterday = `long` and distance ≥ 15 km | `recovery_day` |
+| 4 | all other days | `maintenance` |
+
+`pre_workout_light` is reserved in the schema but not assigned by the algorithm in M2 (requires `session_time` field on running plan, not yet implemented).
+
+**Cross-week edge cases:** algorithm only looks within the current week's `days` array. Monday's "yesterday" (Sunday of prior week) and Sunday's "tomorrow" (Monday of next week) are not looked up — they fall back to `maintenance`. Acceptable for M2.
+
+**Race date source:** `race_date` comes from the running module's `config_json`, not from food config. Food router reads it and injects as `food_config["_race_date"]` before calling the generator.
+
+---
+
+## Food Calorie Baseline Estimation
+
+`PUT /food/config` — if `weight_kg` provided and `calorie_baseline_kcal` was not explicitly overridden from the default (2200):
+
+```
+calorie_baseline_kcal = round(weight_kg × 35)
+```
+
+Factor 35 kcal/kg approximates total daily energy expenditure for an active adult (~TDEE at moderate activity). The frontend shows the auto-estimated value as editable; user can override before saving.
+
+Default when weight is skipped: 2200 kcal/day.
+
+---
+
+## Food Prep Batch Assignment
+
+`food_plan_generator.py` — `_assign_prep_batches(days, prep_frequency) → list[dict]`
+
+| prep_frequency | Batch assignment |
+|---|---|
+| `daily` | Each day is its own batch (batch 1 through 7) |
+| `every_2_days` | Days 0–1 → batch 1, days 2–3 → batch 2, days 4–5 → batch 3, day 6 → batch 4 |
+| `every_3_days` | Days 0–2 (Mon–Wed) → batch 1, days 3–6 (Thu–Sun) → batch 2 |
+
+`every_3_days` default: batch 2 covers 4 days (Thu–Sun) instead of 3. Acceptable — Sunday is typically rest or long run with simpler needs.
+
+**Batch coherence rule** (in Claude prompt): all days sharing the same `prep_batch` must have the **identical dinner** name and recipe. Breakfast and lunch can vary within a batch. This is enforced via prompt instruction, then overridden post-generation: `_parse_and_validate` overwrites each day's `prep_batch` with the Python-computed value to ensure prompt compliance.
+
+---
+
+## Food Plan Day JSON Schema
+
+Produced by `food_plan_generator.py`, stored in `weekly_plans.plan_json` with `module = 'food'`.
+
+```json
+{
+  "week_start": "YYYY-MM-DD",
+  "module": "food",
+  "prep_frequency": "every_3_days",
+  "race_week": false,
+  "days": [
+    {
+      "date": "YYYY-MM-DD",
+      "session_type": "easy | tempo | interval | long | race_pace | recovery | rest",
+      "session_distance_km": 0,
+      "nutrition_context": "carb_loading_day | pre_workout_moderate_carb | recovery_day | maintenance | race_morning | post_race_recovery",
+      "prep_batch": 1,
+      "targets": {
+        "calories": 2800,
+        "carbs_g": 380,
+        "protein_g": 140,
+        "fat_g": 80
+      },
+      "meals": {
+        "breakfast": {
+          "name": "string",
+          "description": "string",
+          "calories": 0,
+          "macros": { "carbs_g": 0, "protein_g": 0, "fat_g": 0 },
+          "ingredients": [
+            { "name": "string", "quantity": "string", "unit": "string", "category": "produce | proteins | grains | dairy | pantry | other" }
+          ]
+        },
+        "pre_workout": { "name": "...", "timing": "60-90 min before", "calories": 0, "macros": {}, "ingredients": [] },
+        "post_workout": { "name": "...", "timing": "within 30 min after", "calories": 0, "macros": {}, "ingredients": [] },
+        "lunch": { ... },
+        "dinner": { ... },
+        "snacks": []
+      },
+      "note": "Brief note about this day's nutrition strategy"
+    }
+  ]
+}
+```
+
+**Meal slot rules:**
+- Rest days: `pre_workout` and `post_workout` are **omitted** (not null — key absent)
+- Training days: `pre_workout` and `post_workout` are present
+- `snacks` is an array of meal objects (0–2 per day; more on high-load days)
+- `targets` macros: `carbs_g × 4 + protein_g × 4 + fat_g × 9 ≈ calories` (within 10%)
+
+---
+
 ## Plan Day JSON Schema
 
 All plan generators and the coach both produce / consume this shape:

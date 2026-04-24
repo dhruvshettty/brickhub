@@ -4,6 +4,8 @@ import Dashboard from './pages/Dashboard'
 import Running from './pages/Running'
 import RunningSetup from './pages/RunningSetup'
 import SettingsPage from './pages/SettingsPage'
+import Food from './pages/Food'
+import FoodSetup from './pages/FoodSetup'
 import ComingSoon from './pages/ComingSoon'
 
 const navItems = [
@@ -65,7 +67,8 @@ export default function App() {
           <Route path="/running" element={<Running />} />
           <Route path="/running/setup" element={<RunningSetup />} />
           <Route path="/biking" element={<ComingSoon module="Biking" milestone="M2" />} />
-          <Route path="/food" element={<ComingSoon module="Food" milestone="M4" />} />
+          <Route path="/food" element={<Food />} />
+          <Route path="/food/setup" element={<FoodSetup />} />
           <Route path="/gym" element={<ComingSoon module="Gym" milestone="M5" />} />
           <Route path="/swimming" element={<ComingSoon module="Swimming" milestone="M6" />} />
           <Route path="/settings" element={<SettingsPage />} />

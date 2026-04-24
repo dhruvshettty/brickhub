@@ -2,7 +2,7 @@
 
 Personal triathlon training dashboard. Five modules (running, biking, swimming, gym, food) share cross-module intelligence: gym soreness affects swim plan, long ride tomorrow affects dinner suggestion. Claude generates all plans and coaches in real time.
 
-Single-user, self-hosted. M1 (running) is complete. M2 (biking) and M3 (training data integration via Strava) are next.
+Single-user, self-hosted. M1 (running) is complete. M2 (food) is in progress. M3 (biking) is next.
 
 ## Tech Stack
 
@@ -20,16 +20,17 @@ Single-user, self-hosted. M1 (running) is complete. M2 (biking) and M3 (training
 backend/app/
   core/          database.py (engine + get_db), config.py (pydantic settings)
   models/        ORM models — one file per table
-    profile.py, workout.py, plan.py, plan_edit.py, module_config.py, coach.py
+    profile.py, workout.py, plan.py, plan_edit.py, module_config.py, coach.py, food.py
   services/
-    claude_service.py     ClaudeService (generate, generate_with_cache, chat) + cost logging
-    cross_module.py       get_signals() + signals_to_context_string() — injected into every Claude call
-    plan_generator.py     generate_running_plan(), save_plan(), _running_config_context()
-    coach_service.py      chat() — builds system prompt, parses <plan_change> blocks
-    workout_adjuster.py   recalibrate_running() — Haiku-based weekly recalibration
-    running_ability.py    Deterministic classify(), suggest_weekly_runs() — no Claude
+    claude_service.py        ClaudeService (generate, generate_with_cache, chat) + cost logging
+    cross_module.py          get_signals() + signals_to_context_string() — injected into every Claude call
+    plan_generator.py        generate_running_plan(), save_plan(), _running_config_context()
+    food_plan_generator.py   generate_food_plan() — window algorithm + Claude Sonnet (16384 tokens)
+    coach_service.py         chat() — builds system prompt, parses <plan_change> blocks
+    workout_adjuster.py      recalibrate_running() — Haiku-based weekly recalibration
+    running_ability.py       Deterministic classify(), suggest_weekly_runs() — no Claude
   api/v1/        Route handlers — one file per module
-  alembic/       Migrations 001–007
+  alembic/       Migrations 001–008
 
 frontend/src/
   lib/api.ts     All API calls + TypeScript types (single source of truth for API contracts)
@@ -42,6 +43,7 @@ frontend/src/
 ```bash
 make dev-native        # start everything (migrations run automatically)
 make stop-native       # kill background API server
+make test              # run pytest suite (backend/tests/)
 
 make reset-module m=running   # clear one module's onboarding + cached plan
 make reset-all                # clear all training data (keeps profile)
@@ -63,6 +65,16 @@ API docs auto-generated at `http://localhost:8000/docs` when running.
 | POST | `/running/apply-plan-change` | Apply coach-proposed change to current week plan. Deletes WorkoutLog for affected dates. |
 | POST | `/coach/message` | Send message to AI coach. Returns `{response, plan_change}`. |
 | GET | `/coach/history` | Last 50 coach messages. |
+
+## Food Module — Key Endpoints
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/food/config` | Returns food config + `onboarded` + `running_onboarded` flags. |
+| PUT | `/food/config` | Save onboarding config. `regenerate: true` deletes current week food plan. Blocked if running not configured. |
+| GET | `/food/plan?week_start=` | Returns cached plan + meal_logs. Generates if missing. Past weeks return `plan: null`. |
+| POST | `/food/log` | Log a meal slot against a date. |
+| DELETE | `/food/log/{id}` | Clear a meal log entry. |
 
 ## Adding a New Module
 

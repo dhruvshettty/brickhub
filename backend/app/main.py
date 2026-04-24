@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.api.v1 import settings as settings_router
-from app.api.v1 import running, coach, dashboard
+from app.api.v1 import running, coach, dashboard, food
 
 # Startup check — fail fast with actionable message if API key is missing
 if not settings.anthropic_api_key or settings.anthropic_api_key.startswith("sk-ant-..."):
@@ -36,6 +36,7 @@ app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(running.router, prefix="/api/v1")
 app.include_router(coach.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
+app.include_router(food.router, prefix="/api/v1")
 
 
 @app.get("/health")
