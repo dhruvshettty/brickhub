@@ -14,6 +14,9 @@ class ProfileUpdate(BaseModel):
     name: str | None = None
     age: int | None = None
     weight_kg: float | None = None
+    height_cm: float | None = None
+    sex: str | None = None
+    unit_preference: str | None = None
     weekly_training_hours: int | None = None
 
 
@@ -22,6 +25,9 @@ class ProfileResponse(BaseModel):
     name: str | None
     age: int | None
     weight_kg: float | None
+    height_cm: float | None
+    sex: str | None
+    unit_preference: str
     weekly_training_hours: int
 
     class Config:
@@ -31,11 +37,17 @@ class ProfileResponse(BaseModel):
 def _get_or_create_profile(db: Session) -> Profile:
     profile = db.query(Profile).first()
     if not profile:
-        profile = Profile(name="Athlete", weekly_training_hours=8)
+        profile = Profile(name="Athlete", weekly_training_hours=8, unit_preference="metric")
         db.add(profile)
         db.commit()
         db.refresh(profile)
     return profile
+
+
+@router.get("/profile/exists")
+def profile_exists(db: Session = Depends(get_db)):
+    exists = db.query(Profile).first() is not None
+    return {"exists": exists}
 
 
 @router.get("/profile", response_model=ProfileResponse)

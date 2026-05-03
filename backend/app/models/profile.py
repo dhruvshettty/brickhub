@@ -10,4 +10,7 @@ class Profile(Base):
     name = Column(String, default="Athlete")
     age = Column(Integer, nullable=True)
     weight_kg = Column(Float, nullable=True)
+    height_cm = Column(Float, nullable=True)
+    sex = Column(String, nullable=True)
+    unit_preference = Column(String, default="metric")
     weekly_training_hours = Column(Integer, default=8)

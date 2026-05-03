@@ -1,4 +1,5 @@
-import { Routes, Route, NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { Activity, Bike, Dumbbell, Fish, Home, Salad, Settings } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Running from './pages/Running'
@@ -7,6 +8,8 @@ import SettingsPage from './pages/SettingsPage'
 import Food from './pages/Food'
 import FoodSetup from './pages/FoodSetup'
 import ComingSoon from './pages/ComingSoon'
+import Onboarding from './pages/Onboarding'
+import { checkProfileExists } from './lib/api'
 
 const navItems = [
   { to: '/', icon: Home, label: 'Dashboard', end: true },
@@ -19,6 +22,30 @@ const navItems = [
 ]
 
 export default function App() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    if (location.pathname === '/onboarding') {
+      setChecking(false)
+      return
+    }
+    checkProfileExists().then(({ exists }) => {
+      if (!exists) navigate('/onboarding', { replace: true })
+    }).finally(() => setChecking(false))
+  }, [])
+
+  if (checking) return null
+
+  if (location.pathname === '/onboarding') {
+    return (
+      <Routes>
+        <Route path="/onboarding" element={<Onboarding />} />
+      </Routes>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <nav style={{

@@ -1,4 +1,4 @@
-.PHONY: dev dev-native build down logs db-upgrade db-reset reset stop-native reset-module reset-all clear-plan test
+.PHONY: dev dev-native build down logs db-upgrade db-reset reset stop-native reset-module reset-all reset-everything clear-plan test
 
 # ── Docker targets (requires Docker Desktop) ────────────────────────────────
 
@@ -64,6 +64,10 @@ dev-native: $(VENV)/bin/activate
 reset-all:
 	@sqlite3 backend/brickhub.db "DELETE FROM module_configs; DELETE FROM weekly_plans; DELETE FROM workout_logs; DELETE FROM meal_logs; DELETE FROM coach_messages;"
 	@echo "[brickhub] Full reset — all training data cleared. Profile kept."
+
+reset-everything:
+	@sqlite3 backend/brickhub.db "DELETE FROM module_configs; DELETE FROM weekly_plans; DELETE FROM workout_logs; DELETE FROM meal_logs; DELETE FROM coach_messages; DELETE FROM profiles;"
+	@echo "[brickhub] Nuclear reset — all data cleared including profile."
 
 clear-plan:
 	@test -n "$(m)" || (echo "Usage: make clear-plan m=running" && exit 1)

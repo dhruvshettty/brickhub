@@ -4,6 +4,16 @@ Tracks milestones, features, and known issues. Update this as work progresses.
 
 ---
 
+## M0 — App Onboarding ✅ COMPLETE
+
+- [x] Fresh-user detection: `GET /settings/profile/exists` → redirect to `/onboarding` if no profile row
+- [x] Welcome step: app description, module grid (5 cards, available/coming-soon state), SVG signals web showing cross-module connections
+- [x] Profile step: name, age, sex (Male/Female), metric/imperial toggle, weight, height, weekly training hours → `PUT /settings/profile`
+- [x] Profile model extended: `height_cm`, `sex`, `unit_preference` (migration 009)
+- [x] Onboarding renders full-screen without sidebar nav
+
+---
+
 ## M1 — Running Fundamentals 🔲 IN PROGRESS
 
 Everything needed to nail the running experience end-to-end.

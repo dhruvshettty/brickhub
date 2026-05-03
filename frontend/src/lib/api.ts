@@ -17,6 +17,7 @@ export const getDashboardSummary = () =>
   request<DashboardSummary>('/dashboard/summary')
 
 // Settings
+export const checkProfileExists = () => request<{ exists: boolean }>('/settings/profile/exists')
 export const getProfile = () => request<Profile>('/settings/profile')
 export const updateProfile = (data: Partial<Profile>) =>
   request<Profile>('/settings/profile', { method: 'PUT', body: JSON.stringify(data) })
@@ -54,6 +55,9 @@ export interface Profile {
   name: string | null
   age: number | null
   weight_kg: number | null
+  height_cm: number | null
+  sex: string | null
+  unit_preference: string
   weekly_training_hours: number
 }
 

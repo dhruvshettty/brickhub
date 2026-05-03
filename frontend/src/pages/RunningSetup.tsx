@@ -4,7 +4,6 @@ import {
   classifyRunningAbility,
   getRunningConfig,
   getProfile,
-  updateProfile,
   saveRunningConfig,
   ClassifyResult,
   RunningConfig,
@@ -243,123 +242,6 @@ function VolumeGraph({ points, active }: { points: string; active: boolean }) {
 }
 
 // ── Step components ───────────────────────────────────────────────────────────
-
-function Step0Profile({
-  name,
-  setName,
-  age,
-  setAge,
-  weightKg,
-  setWeightKg,
-  weeklyHours,
-  setWeeklyHours,
-  onNext,
-  saving,
-}: {
-  name: string
-  setName: (v: string) => void
-  age: number | ''
-  setAge: (v: number | '') => void
-  weightKg: number | ''
-  setWeightKg: (v: number | '') => void
-  weeklyHours: number
-  setWeeklyHours: (v: number) => void
-  onNext: () => void
-  saving: boolean
-}) {
-  const canProceed = name.trim().length > 0
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '10px 12px',
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 6,
-    color: 'var(--text)',
-    fontSize: 14,
-    boxSizing: 'border-box',
-  }
-
-  return (
-    <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Tell us about yourself</h2>
-      <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
-        Used to personalise your training plan.
-      </p>
-
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
-          Name <span style={{ color: 'var(--accent)' }}>*</span>
-        </label>
-        <input
-          type="text"
-          value={name}
-          placeholder="Your name"
-          onChange={e => setName(e.target.value)}
-          style={inputStyle}
-        />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
-            Age <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
-          </label>
-          <input
-            type="number"
-            value={age}
-            min={10}
-            max={100}
-            placeholder="—"
-            onChange={e => setAge(e.target.value === '' ? '' : parseInt(e.target.value) || '')}
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
-            Weight (kg) <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
-          </label>
-          <input
-            type="number"
-            value={weightKg}
-            min={30}
-            max={250}
-            step={0.5}
-            placeholder="—"
-            onChange={e => setWeightKg(e.target.value === '' ? '' : parseFloat(e.target.value) || '')}
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 28 }}>
-        <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
-          Weekly training hours available:{' '}
-          <strong style={{ color: 'var(--text)' }}>{weeklyHours}h</strong>
-        </label>
-        <input
-          type="range"
-          min={2}
-          max={20}
-          step={1}
-          value={weeklyHours}
-          onChange={e => setWeeklyHours(parseInt(e.target.value))}
-          style={{ width: '100%', accentColor: 'var(--accent)' }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
-          <span>2h</span><span>20h</span>
-        </div>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-          Across all sports — running, biking, gym. Used to keep your total load realistic.
-        </p>
-      </div>
-
-      <button style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }} disabled={!canProceed || saving} onClick={onNext}>
-        {saving ? 'Saving...' : 'Next →'}
-      </button>
-    </div>
-  )
-}
 
 function Step1({
   trainingGoal,
@@ -1451,13 +1333,6 @@ export default function RunningSetup() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [profileSaving, setProfileSaving] = useState(false)
-
-  // Step 1 — Profile
-  const [profileName, setProfileName] = useState('')
-  const [profileAge, setProfileAge] = useState<number | ''>('')
-  const [profileWeight, setProfileWeight] = useState<number | ''>('')
-  const [profileWeeklyHours, setProfileWeeklyHours] = useState(8)
 
   // Step 2 — Goal & Distance
   const [trainingGoal, setTrainingGoal] = useState('')
@@ -1501,19 +1376,13 @@ export default function RunningSetup() {
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
-  const totalSteps = trainingGoal === 'fitness' ? 5 : 6
-  // step 6 is the 5th position in the fitness flow (step 5 is skipped)
-  const displayStep = step === 6 && trainingGoal === 'fitness' ? 5 : step
+  const totalSteps = trainingGoal === 'fitness' ? 4 : 5
+  // step 5 is the 4th position in the fitness flow (step 4 is skipped)
+  const displayStep = step === 5 && trainingGoal === 'fitness' ? 4 : step
 
   // Pre-fill from existing config and profile
   useEffect(() => {
-    Promise.all([getRunningConfig(), getProfile()]).then(([{ config }, profile]) => {
-      // Profile
-      if (profile.name && profile.name !== 'Athlete') setProfileName(profile.name)
-      if (profile.age) setProfileAge(profile.age)
-      if (profile.weight_kg) setProfileWeight(profile.weight_kg)
-      setProfileWeeklyHours(profile.weekly_training_hours)
-
+    Promise.all([getRunningConfig(), getProfile()]).then(([{ config }]) => {
       if (config) {
         setIsEditing(true)
         if (config.training_goal) setTrainingGoal(config.training_goal)
@@ -1586,34 +1455,20 @@ export default function RunningSetup() {
     setSuggestedRunsPerWeek(suggested)
   }, [recentRuns4Weeks, abilityLevel])
 
-  const handleStep1Next = async () => {
-    setProfileSaving(true)
-    try {
-      await updateProfile({
-        name: profileName.trim() || undefined,
-        age: typeof profileAge === 'number' ? profileAge : undefined,
-        weight_kg: typeof profileWeight === 'number' ? profileWeight : undefined,
-        weekly_training_hours: profileWeeklyHours,
-      })
-    } catch { /* profile save is best-effort */ }
-    setProfileSaving(false)
-    setStep(2)
-  }
-
-  const handleStep3Next = () => {
+  const handleStep2Next = () => {
     if (!hasPreviousRace) {
       setAbilityLevel('beginner')
       setAerobicBasePriority(false)
     }
-    setStep(4)
+    setStep(3)
   }
 
-  const handleStep4Next = () => {
+  const handleStep3Next = () => {
     // Skip timeline step for fitness goal
     if (trainingGoal === 'fitness') {
-      setStep(6)
-    } else {
       setStep(5)
+    } else {
+      setStep(4)
     }
   }
 
@@ -1681,20 +1536,6 @@ export default function RunningSetup() {
       </div>
 
       {step === 1 && (
-        <Step0Profile
-          name={profileName}
-          setName={setProfileName}
-          age={profileAge}
-          setAge={setProfileAge}
-          weightKg={profileWeight}
-          setWeightKg={setProfileWeight}
-          weeklyHours={profileWeeklyHours}
-          setWeeklyHours={setProfileWeeklyHours}
-          onNext={handleStep1Next}
-          saving={profileSaving}
-        />
-      )}
-      {step === 2 && (
         <Step1
           trainingGoal={trainingGoal}
           setTrainingGoal={setTrainingGoal}
@@ -1706,11 +1547,11 @@ export default function RunningSetup() {
           setRaceTerrain={setRaceTerrain}
           trainingTerrain={trainingTerrain}
           setTrainingTerrain={setTrainingTerrain}
-          onNext={() => setStep(3)}
-          onBack={() => setStep(1)}
+          onNext={() => setStep(2)}
+          onBack={() => navigate('/running')}
         />
       )}
-      {step === 3 && (
+      {step === 2 && (
         <Step2
           targetDistance={targetDistance}
           hasPreviousRace={hasPreviousRace}
@@ -1721,11 +1562,11 @@ export default function RunningSetup() {
           setEffortScore={setEffortScore}
           classifyResult={classifyResult}
           classifying={classifying}
-          onNext={handleStep3Next}
-          onBack={() => setStep(2)}
+          onNext={handleStep2Next}
+          onBack={() => setStep(1)}
         />
       )}
-      {step === 4 && (
+      {step === 3 && (
         <Step3
           recentRuns4Weeks={recentRuns4Weeks}
           setRecentRuns4Weeks={setRecentRuns4Weeks}
@@ -1753,11 +1594,11 @@ export default function RunningSetup() {
           priorBaselineKm={priorBaselineKm}
           setPriorBaselineKm={setPriorBaselineKm}
           abilityLevel={abilityLevel}
-          onNext={handleStep4Next}
-          onBack={() => setStep(3)}
+          onNext={handleStep3Next}
+          onBack={() => setStep(2)}
         />
       )}
-      {step === 5 && trainingGoal !== 'fitness' && (
+      {step === 4 && trainingGoal !== 'fitness' && (
         <Step4
           trainingGoal={trainingGoal}
           hasRace={hasRace}
@@ -1768,11 +1609,11 @@ export default function RunningSetup() {
           setPlanWeeks={setPlanWeeks}
           planStartDate={planStartDate}
           setPlanStartDate={setPlanStartDate}
-          onNext={() => setStep(6)}
-          onBack={() => setStep(4)}
+          onNext={() => setStep(5)}
+          onBack={() => setStep(3)}
         />
       )}
-      {step === 6 && (
+      {step === 5 && (
         <Step5
           config={{
             trainingGoal,
@@ -1796,7 +1637,7 @@ export default function RunningSetup() {
             currentWeeklyKm,
             abilityLevelForPreview: abilityLevel,
           }}
-          onEdit={() => setStep(trainingGoal === 'fitness' ? 4 : 5)}
+          onEdit={() => setStep(trainingGoal === 'fitness' ? 3 : 4)}
           onConfirm={handleConfirm}
           isEditing={isEditing}
           saving={saving}

@@ -126,8 +126,12 @@ Coach chat can propose plan changes via a `<plan_change>…</plan_change>` block
 
 ## Onboarding Gate Pattern
 
-The gate lives in the frontend, not the backend.
+Two tiers of gating — both live in the frontend.
 
+**Tier 1 — Fresh user (no profile):**
+`App.tsx` calls `GET /settings/profile/exists` on mount. If `exists: false`, redirects to `/onboarding` (full-screen, no sidebar). After profile save → `/`. This runs before any module is loaded.
+
+**Tier 2 — Module onboarding:**
 `Running.tsx`: `getRunningConfig() → { onboarded: false } → navigate('/running/setup')`
 `Food.tsx`: `getFoodConfig() → { running_onboarded: false } → navigate('/running')` (running must be set up first)
 `Food.tsx`: `getFoodConfig() → { onboarded: false } → navigate('/food/setup')`
@@ -136,7 +140,7 @@ Config stored in `module_configs` (one row per profile per module, `config_json`
 
 **Food dependency gate:** `PUT /food/config` returns HTTP 400 if running is not configured. The frontend also redirects to `/running` if `running_onboarded` is false. Food without a running plan is not supported — nutrition contexts depend on the running schedule.
 
-**Rule:** When adding a new module, repeat this pattern.
+**Rule:** When adding a new module, add a Tier 2 gate in the module page. Tier 1 is global and already handles fresh users.
 
 ---
 
@@ -212,3 +216,5 @@ FastAPI auto-generates `/docs` from Pydantic models at `http://localhost:8000/do
 FastAPI dependency injection: `db: Session = Depends(get_db)` on every endpoint that touches the DB. Session auto-closes via generator finally block.
 
 No multi-user support. `_get_or_create_profile(db)` (in `settings.py`, imported by other routers) always returns the single `Profile` row. When multi-user is added: add `user_id` FKs to all tables + auth middleware.
+
+**Profile fields:** `name`, `age`, `weight_kg`, `height_cm`, `sex`, `unit_preference` (metric/imperial), `weekly_training_hours`. All fields collected during onboarding. `weekly_training_hours` also editable via Settings page. Running setup no longer collects profile data — Step0Profile removed.
