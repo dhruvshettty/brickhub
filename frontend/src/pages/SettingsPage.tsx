@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getProfile, updateProfile, Profile } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
+import StravaCard from '../components/StravaCard'
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -190,6 +191,8 @@ export default function SettingsPage() {
         ))}
 
       </Card>
+
+      <StravaCard />
 
       <button
         onClick={handleSave}

@@ -32,5 +32,6 @@ class WorkoutLog(Base):
     notes = Column(Text, nullable=True)
 
     source = Column(Enum(WorkoutSource), default=WorkoutSource.manual)
+    external_id = Column(String, nullable=True, index=True)  # provider activity id — dedupe on re-sync
 
     created_at = Column(DateTime, server_default=func.now())

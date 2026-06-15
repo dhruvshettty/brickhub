@@ -9,7 +9,7 @@ import Food from './pages/Food'
 import FoodSetup from './pages/FoodSetup'
 import ComingSoon from './pages/ComingSoon'
 import Onboarding from './pages/Onboarding'
-import { checkProfileExists } from './lib/api'
+import { checkProfileExists, syncStrava } from './lib/api'
 
 const navItems = [
   { to: '/', icon: Home, label: 'Dashboard', end: true },
@@ -31,6 +31,8 @@ export default function App() {
       setChecking(false)
       return
     }
+    // Sync on app open — server debounces (~15 min) and no-ops if Strava isn't connected.
+    syncStrava().catch(() => {})
     checkProfileExists().then(({ exists }) => {
       if (!exists) navigate('/onboarding', { replace: true })
     }).finally(() => setChecking(false))

@@ -176,22 +176,103 @@ Full biking experience, at feature parity with running. Biking and running plans
 
 ## M4 — Training Data Integration 🔲 FUTURE
 
-Pull real workout data from the watch instead of manual logging. Improve training effort model with actual data.
+Replace manual logging with real activity data. Manual "mark done" is friction (skip it and
+the plan drifts from reality) and inaccurate (you did 6k, not the planned 8k, at a different
+pace). Pull what actually happened from the watch — via Strava first — so completion is
+automatic and next week's plan reacts to real results. The training-load calc is accidental
+complexity, not the product; real data just feeds it truth instead of guesses.
 
-### Strava Sync
-- [ ] OAuth flow (`strava.com/settings/api`) + credentials in `.env`
-- [ ] Webhook receiver — auto-ingest after every Strava upload
-- [ ] Map Strava activity types → `WorkoutLog` entries (`WorkoutSource.imported`)
-- [ ] HRV + sleep fields on `WorkoutLog` (from Strava or future provider)
+### Design decisions (from discovery, 2026-06-15)
 
-### Training Effort & Fatigue (builds on Strava data)
-- [ ] Training load score (TSS-like) calculated per session and per week
-- [ ] Fatigue trend over time (not just current week snapshot)
+- **Provider-agnostic ingestion.** One `ActivitySource` interface; Strava is the first adapter.
+  Suunto / Garmin / Apple Health / a Manual adapter slot in later without touching the load
+  calc or the Claude boundary. Strava chosen first because it aggregates every device
+  (Garmin, Suunto, Coros, Apple, Polar all sync into it) — integrate once, support all watches.
+  Direct-device APIs (e.g. Suunto APIZone) lock to one vendor and need partner-program approval.
+
+```
+ Garmin ┐
+ Suunto ┤                          ActivitySource (interface)
+ Coros  ├──► STRAVA ──► adapter ──►   ├── StravaAdapter   (build first)
+ Apple  ┤                            ├── SuuntoAdapter   (future, device-direct)
+ Polar  ┘                            └── ManualAdapter   (existing mark-done flow)
+                                              │ normalized {start, duration, distance, hr}
+                                              ▼
+                                     WorkoutLog ──► get_signals() ──► Claude
+                                                    (calc never knows the source)
+```
+
+- **Distribution = clone-and-self-host, single-user per deployment.** Not multi-tenant. Each
+  self-hoster registers their own Strava API app, puts `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET`
+  in `.env` (same pattern as `ANTHROPIC_API_KEY`), and connects their own account. OAuth token
+  stored on the single `Profile` row — no per-user token table, no multi-user display. This
+  makes Strava's "don't display data to other users" clause moot.
+- **AI-clause boundary (Strava API agreement, Nov 2024).** Strava bans putting API data into AI
+  models. brickhub stays clear: Strava data feeds the deterministic load calc + UI only; Claude
+  receives derived signals (fatigue bucket, counts) and — at recalibration — derived deltas
+  ("ran tempo 18s/km faster than prescribed"), never raw activity JSON or splits. Inference-only
+  + single-user self-host ⇒ enforcement risk ≈ 0, ToS risk low. Keep the aggregation step between
+  Strava and any prompt; never shortcut raw fields into a prompt.
+- **API cost:** free for the self-hoster as long as they have a Strava subscription (a sub is the
+  prerequisite to create an API app — no separate per-call fee). Rate limits (200/15min, 2000/day)
+  are far above single-athlete needs.
+- **Sync on app-open only, no background cron.** Server is often off (personal localhost), so sync
+  triggers when the app loads, plus a manual "Sync now" button. Debounce: skip if synced
+  < ~15 min ago. Webhook adapter slot left for anyone who *does* host (needs a public URL).
+- **Store locally, fetch incrementally.** Imported activities land in `WorkoutLog`
+  (`source=imported`). Keep a `last_synced_at` cursor and fetch `GET /athlete/activities?after=`
+  — never re-fetch history. Bounded first sync: pull only the current training window
+  (since plan start / last ~4 weeks), not lifetime. Add `external_id` (Strava activity id) for
+  idempotent dedupe so re-syncs never double-insert. What we fetch we keep (logs are tiny and
+  feed the 4-week completion-rate signal); "don't fetch all weeks" ≠ prune what's imported.
+- **Auto-match, confirm on ambiguity.** Map activity → planned session by date + type
+  (run→running, ride→biking). Auto-import when the match is obvious; ask the user to
+  confirm/override only when ambiguous (two runs same day, or no planned session). Keeps
+  friction near-zero *and* completion accurate.
+- **Scope this pass:** completion confirmation + accurate weekly volume; recalibration consumes
+  derived actual-vs-prescribed deltas for next-week planning. No live per-session coaching.
+
+### Phase 1 — Strava connect + import (completion) ✅ Done
+- [x] `ActivitySource` interface (`activity_source.py`) + `StravaAdapter` (`strava_adapter.py`):
+      OAuth2, token refresh, `GET /athlete/activities`. Scope `activity:read_all` (private runs too)
+- [x] `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` in `.env` + `.env.example` (already present)
+- [x] OAuth token (access + refresh + expiry epoch) and `strava_last_synced_at` on `Profile` (migration 010)
+- [x] `external_id` column + index on `WorkoutLog` for dedupe (migration 010)
+- [x] OAuth connect/disconnect flow (`/api/v1/strava/{authorize,callback,disconnect}`) +
+      "Connect with Strava" button (`StravaCard.tsx`); disconnect clears token + deletes imported data
+- [x] Sync service (`strava_sync.py`): on app-open (`App.tsx`) + manual "Sync now"; incremental
+      `after=last_synced_at`; bounded first window (28d); ~15 min debounce; `force` bypass
+- [x] Activity → planned session matching by date + type; auto-import on clear match; ambiguous
+      (no_planned_session / multiple_activities / already_logged) surfaced in Settings with
+      per-activity "Import to {date}" / "Dismiss" confirm controls
+- [x] Map activity → `WorkoutLog` (source=imported, completed_at, duration_minutes, distance_km,
+      avg_hr); feeds existing `get_signals()` unchanged — nothing reaches Claude (green band)
+- [x] Tests: matching (all branches), adapter normalization + scope, incremental cursor, debounce,
+      dedupe idempotency, token refresh — `backend/tests/test_strava_sync.py` (18 tests)
+- [ ] Polish (deferred): "Imported from Strava" badge on the Running page day cards — imports show
+      in the Settings sync summary today, but day_logs would need a `source` field to badge per-day
+
+**Manual setup (self-hoster, one-time):** register an app at strava.com/settings/api with
+Authorization Callback Domain `localhost`, put the client id/secret in `.env`, restart, then
+Settings → Connect with Strava.
+
+### Phase 2 — Recalibration off actuals (deltas)
+- [ ] Compute derived per-session deltas: actual vs prescribed pace/duration/distance; weekly
+      actual volume vs planned
+- [ ] Inject deltas (derived, not raw splits) into recalibration prompt so next week's plan
+      reacts to real results
+- [ ] Tests: delta computation; prompt-boundary test asserting no raw activity fields reach Claude
+
+### Future (deferred — most need a device-direct source, not Strava)
+- [ ] Additional adapters: Suunto (APIZone partner program), Garmin, Apple Health, Manual
+- [ ] Webhook adapter (push on upload) for hosted deployments
+- [ ] Training load score (TSS-like) per session and per week
+- [ ] Fatigue trend over time (not just current-week snapshot)
 - [ ] Recovery day auto-suggestion based on accumulated load
 - [ ] Effort dashboard widget (visible from main dashboard)
-- [ ] Cross-module signals improved: weight fatigue from each discipline separately
-- [ ] Recovery score from HRV + sleep (Strava or provider data)
-- [ ] Actual vs planned load comparison
+- [ ] Cross-module signals improved: fatigue weighted per discipline separately
+- [ ] Recovery score from HRV + sleep (needs watch-direct API — Strava does not reliably expose these)
+- [ ] Actual vs planned load comparison view
 - [ ] Long-term training load trend (CTL / ATL / TSB model)
 - [ ] Readiness score on dashboard (should I train hard today?)
 

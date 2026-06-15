@@ -149,6 +149,28 @@ def _day_logs_for_week(db: Session, week_start: date) -> dict[str, str]:
     }
 
 
+def _day_activities_for_week(db: Session, week_start: date) -> dict[str, dict]:
+    """Return {date_str: {source, distance_km, duration_minutes, avg_hr}} for completed
+    running sessions in the week — the *actual* numbers, including Strava imports and runs
+    done on unplanned (rest) days, which the planned-session grid would otherwise hide."""
+    week_end = week_start + timedelta(days=6)
+    logs = db.query(WorkoutLog).filter(
+        WorkoutLog.module == ModuleType.running,
+        WorkoutLog.completed_at.isnot(None),
+        WorkoutLog.planned_at >= datetime.combine(week_start, datetime.min.time()),
+        WorkoutLog.planned_at <= datetime.combine(week_end, datetime.max.time()),
+    ).all()
+    return {
+        log.planned_at.date().isoformat(): {
+            "source": log.source.value if log.source else "manual",
+            "distance_km": log.distance_km,
+            "duration_minutes": log.duration_minutes,
+            "avg_hr": log.avg_hr,
+        }
+        for log in logs
+    }
+
+
 def _plan_edits_for_week(db: Session, week_start: date) -> dict[str, dict]:
     """Return {date_str: {original_session, new_session, reason, changed_at}} for coach edits."""
     edits = db.query(PlanEdit).filter(
@@ -174,6 +196,7 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
         week_start = today - timedelta(days=today.weekday())
 
     day_logs = _day_logs_for_week(db, week_start)
+    day_activities = _day_activities_for_week(db, week_start)
     plan_edits = _plan_edits_for_week(db, week_start)
 
     plan = db.query(WeeklyPlan).filter(
@@ -182,30 +205,31 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
     ).first()
 
     if plan:
-        return {"plan": plan.plan_json, "ai_unavailable": False, "day_logs": day_logs, "plan_edits": plan_edits}
+        return {"plan": plan.plan_json, "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
 
     # Never generate a plan retroactively for past weeks — what's stored is the record.
     today = date.today()
     current_week_start = today - timedelta(days=today.weekday())
     if week_start < current_week_start:
-        return {"plan": None, "ai_unavailable": False, "day_logs": day_logs, "plan_edits": plan_edits}
+        return {"plan": None, "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
 
     profile = _get_or_create_profile(db)
     try:
         claude = get_claude_service()
         plan_json = generate_running_plan(db, claude, profile, week_start)
         save_plan(db, "running", week_start, plan_json)
-        return {"plan": plan_json, "ai_unavailable": False, "day_logs": day_logs, "plan_edits": plan_edits}
+        return {"plan": plan_json, "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
     except ClaudeUnavailableError:
         return {
             "plan": None,
             "ai_unavailable": True,
             "message": "AI coach unavailable. Set your ANTHROPIC_API_KEY in .env and restart.",
             "day_logs": {},
+            "day_activities": {},
             "plan_edits": {},
         }
     except EnvironmentError as e:
-        return {"plan": None, "ai_unavailable": True, "message": str(e), "day_logs": {}, "plan_edits": {}}
+        return {"plan": None, "ai_unavailable": True, "message": str(e), "day_logs": {}, "day_activities": {}, "plan_edits": {}}
 
 
 @router.post("/apply-plan-change")

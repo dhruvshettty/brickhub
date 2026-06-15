@@ -43,6 +43,19 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 today_run = day
                 break
 
+    # Actual completed run today (Strava import or manual) — shown even on rest days,
+    # so an unplanned run still surfaces on the dashboard instead of "Rest day".
+    today_actual = None
+    for log in logs:
+        if log.module.value == "running" and log.completed_at and log.planned_at.date() == today:
+            today_actual = {
+                "distance_km": log.distance_km,
+                "duration_minutes": log.duration_minutes,
+                "avg_hr": log.avg_hr,
+                "source": log.source.value if log.source else "manual",
+            }
+            break
+
     # Race countdown from running module config
     race_countdown = None
     running_goal = None
@@ -97,6 +110,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         "race_countdown": race_countdown,
         "running_goal": running_goal,
         "today_run": today_run,
+        "today_actual": today_actual,
         "today_food": today_food,
         "logged_calories_today": logged_calories_today,
         "module_progress": {

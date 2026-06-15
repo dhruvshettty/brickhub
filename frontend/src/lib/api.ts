@@ -49,6 +49,19 @@ export const sendCoachMessage = (content: string) =>
 export const getCoachHistory = () =>
   request<CoachMessage[]>('/coach/history')
 
+// Strava
+export const getStravaStatus = () => request<StravaStatus>('/strava/status')
+export const syncStrava = (force = false) =>
+  request<StravaSyncResult>(`/strava/sync${force ? '?force=true' : ''}`, { method: 'POST' })
+export const matchStravaActivity = (data: StravaMatchRequest) =>
+  request<{ imported: boolean; id: number; planned_at: string }>(
+    '/strava/match', { method: 'POST', body: JSON.stringify(data) },
+  )
+export const disconnectStrava = () =>
+  request<{ disconnected: boolean }>('/strava/disconnect', { method: 'POST' })
+// OAuth is a browser redirect, so it must hit the API host directly (not the relative proxy path).
+export const stravaAuthorizeUrl = 'http://localhost:8000/api/v1/strava/authorize'
+
 // Types
 export interface Profile {
   id: number
@@ -68,6 +81,7 @@ export interface DashboardSummary {
   running_goal: string | null
   race_countdown: { days: number; distance: string; date: string } | null
   today_run: PlanDay | null
+  today_actual: DayActivity | null
   today_food: {
     date: string
     nutrition_context: string
@@ -109,6 +123,13 @@ export interface PlanEditEntry {
   changed_at: string
 }
 
+export interface DayActivity {
+  source: string                 // 'manual' | 'imported'
+  distance_km: number | null
+  duration_minutes: number | null
+  avg_hr: number | null
+}
+
 export interface PlanResponse {
   plan: {
     week_start: string
@@ -120,6 +141,7 @@ export interface PlanResponse {
   ai_unavailable: boolean
   message?: string
   day_logs: Record<string, 'done' | 'missed'>
+  day_activities: Record<string, DayActivity>   // actual completed-run numbers, incl. rest-day runs
   plan_edits: Record<string, PlanEditEntry>
 }
 
@@ -362,4 +384,43 @@ export interface WorkoutLogRequest {
   distance_km?: number | null
   avg_hr?: number | null
   notes?: string | null
+}
+
+// Strava
+export interface StravaStatus {
+  configured: boolean
+  connected: boolean
+  athlete_id: string | null
+  last_synced_at: string | null
+}
+
+export interface StravaActivity {
+  external_id: string
+  type: string
+  start: string
+  date: string
+  duration_minutes: number | null
+  distance_km: number | null
+  avg_hr: number | null
+  name: string | null
+  reason?: string       // present on ambiguous: no_planned_session | multiple_activities | already_logged
+  planned_at?: string   // present on imported
+}
+
+export interface StravaSyncResult {
+  connected: boolean
+  skipped: boolean
+  imported: StravaActivity[]
+  ambiguous: StravaActivity[]
+  last_synced_at?: string
+}
+
+export interface StravaMatchRequest {
+  external_id: string
+  planned_at: string
+  type?: string
+  start: string
+  duration_minutes?: number | null
+  distance_km?: number | null
+  avg_hr?: number | null
 }

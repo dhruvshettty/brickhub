@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RefreshCw, Settings2, Undo2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, PlanEditEntry, RunningConfig } from '../lib/api'
+import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, PlanEditEntry, RunningConfig, DayActivity } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 
 const PLAN_MESSAGES = [
@@ -143,6 +143,7 @@ export default function Running() {
   const [logging, setLogging] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [logState, setLogState] = useState<Record<string, 'done' | 'missed' | null>>({})
+  const [dayActivities, setDayActivities] = useState<Record<string, DayActivity>>({})
   const [selectedWeek, setSelectedWeek] = useState<string>(currentWeekMonday())
   const [expandedRationale, setExpandedRationale] = useState<Set<string>>(new Set())
   const [recalibrateTooltip, setRecalibrateTooltip] = useState(false)
@@ -150,6 +151,14 @@ export default function Running() {
   const [editTooltip, setEditTooltip] = useState<string | null>(null)
 
   const thisWeek = currentWeekMonday()
+
+  const actualLabel = (a: DayActivity): string => {
+    const parts: string[] = []
+    if (a.distance_km != null) parts.push(`${a.distance_km} km`)
+    if (a.duration_minutes != null) parts.push(`${Math.round(a.duration_minutes)} min`)
+    if (a.avg_hr != null) parts.push(`${a.avg_hr} bpm`)
+    return parts.join(' · ') || 'Completed'
+  }
 
   useEffect(() => {
     init()
@@ -168,6 +177,7 @@ export default function Running() {
       const data = await getRunningPlan()
       setPlanData(data)
       setLogState(data.day_logs ?? {})
+      setDayActivities(data.day_activities ?? {})
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -183,6 +193,7 @@ export default function Running() {
       const data = await getRunningPlan(weekStart)
       setPlanData(data)
       setLogState(data.day_logs ?? {})
+      setDayActivities(data.day_activities ?? {})
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -242,6 +253,7 @@ export default function Running() {
   const handleClearLog = async (day: PlanDay) => {
     const prev = logState[day.date] ?? null
     setLogState(s => ({ ...s, [day.date]: null }))
+    setDayActivities(s => { const n = { ...s }; delete n[day.date]; return n })
     setLogging(day.date)
     try {
       await clearWorkoutLog(day.date)
@@ -529,6 +541,8 @@ export default function Running() {
               const isPreferred = preferredDays.has(getDayOfWeek(day.date))
               const rationaleOpen = expandedRationale.has(day.date)
               const coachEdit: PlanEditEntry | undefined = planEdits[day.date]
+              const act = dayActivities[day.date]
+              const isExtra = day.type === 'rest' && !!act
 
               return (
                 <div
@@ -611,7 +625,22 @@ export default function Running() {
 
                     <div>
                       {day.type === 'rest' ? (
-                        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Rest</span>
+                        isExtra ? (
+                          <span style={{
+                            background: '#f97316',
+                            color: 'white',
+                            borderRadius: 4,
+                            padding: '2px 8px',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            Extra
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Rest</span>
+                        )
                       ) : (
                         <span style={{
                           background: RUN_TYPE_COLOR[day.type] || 'var(--border)',
@@ -628,6 +657,14 @@ export default function Running() {
                     </div>
 
                     <div>
+                      {isExtra && (
+                        <div style={{ fontSize: 13 }}>
+                          <span style={{ fontWeight: 600 }}>{actualLabel(act)}</span>
+                          <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 12 }}>
+                            Unplanned run{act.source === 'imported' ? ' · imported from Strava' : ''}
+                          </div>
+                        </div>
+                      )}
                       {day.type !== 'rest' && (
                         <div style={{ fontSize: 13 }}>
                           <span style={{ fontWeight: 600 }}>{day.distance_km} km</span>
@@ -637,6 +674,11 @@ export default function Running() {
                           <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 12 }}>
                             {day.description}
                           </div>
+                          {act && (
+                            <div style={{ marginTop: 2, fontSize: 12, color: '#22c55e' }}>
+                              Actual: {actualLabel(act)}{act.source === 'imported' ? ' · Strava' : ''}
+                            </div>
+                          )}
                           {day.rationale && (
                             <button
                               onClick={() => toggleRationale(day.date)}
@@ -716,6 +758,33 @@ export default function Running() {
                           </button>
                         )}
                       </div>
+                    )}
+
+                    {isExtra && !isPastWeek && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                        <span style={{ color: '#22c55e', fontSize: 12, fontWeight: 600 }}>✓ Done</span>
+                        <button
+                          onClick={() => handleClearLog(day)}
+                          disabled={logging === day.date}
+                          title="Remove this run"
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border)',
+                            borderRadius: 6,
+                            color: 'var(--text-muted)',
+                            padding: '4px 7px',
+                            fontSize: 11,
+                            cursor: 'pointer',
+                            lineHeight: 1,
+                          }}
+                        >
+                          <Undo2 size={12} />
+                        </button>
+                      </div>
+                    )}
+
+                    {isExtra && isPastWeek && (
+                      <div style={{ fontSize: 12, color: '#22c55e', textAlign: 'right' }}>✓ Done</div>
                     )}
 
                     {day.type !== 'rest' && isPastWeek && (

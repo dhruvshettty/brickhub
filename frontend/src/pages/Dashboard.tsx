@@ -165,6 +165,33 @@ export default function Dashboard() {
               <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                 {data.today_run.description}
               </div>
+              {data.today_actual && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
+                  ✓ Done — {formatActual(data.today_actual)}{data.today_actual.source === 'imported' ? ' · Strava' : ''}
+                </div>
+              )}
+            </div>
+          ) : data.today_actual ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{
+                  background: '#f97316',
+                  color: 'white',
+                  borderRadius: 4,
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                }}>
+                  Extra run
+                </span>
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
+                {data.today_actual.distance_km != null ? `${data.today_actual.distance_km} km` : 'Run logged'}
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                {formatActual(data.today_actual)}{data.today_actual.source === 'imported' ? ' · imported from Strava' : ''}
+              </div>
             </div>
           ) : (
             <div>
@@ -304,4 +331,12 @@ function getTimeOfDay(): string {
   if (h < 12) return 'morning'
   if (h < 17) return 'afternoon'
   return 'evening'
+}
+
+function formatActual(a: { distance_km: number | null; duration_minutes: number | null; avg_hr: number | null }): string {
+  const parts: string[] = []
+  if (a.distance_km != null) parts.push(`${a.distance_km} km`)
+  if (a.duration_minutes != null) parts.push(`${Math.round(a.duration_minutes)} min`)
+  if (a.avg_hr != null) parts.push(`${a.avg_hr} bpm`)
+  return parts.join(' · ') || 'Completed'
 }
