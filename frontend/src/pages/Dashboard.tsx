@@ -3,31 +3,19 @@ import { Link } from 'react-router-dom'
 import { getDashboardSummary, DashboardSummary } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 import CoachPanel from '../components/CoachPanel'
+import { WORKOUT_TYPE_COLOR, NUTRITION_CONTEXT_COLOR, FATIGUE_COLOR } from '../lib/tokens'
+import { Heading } from '../components/Type'
 
 const CONTEXT_LABEL: Record<string, { label: string; color: string }> = {
-  carb_loading_day: { label: 'Carb-loading day', color: '#3b82f6' },
-  pre_workout_moderate_carb: { label: 'Pre-workout carbs', color: '#f97316' },
-  recovery_day: { label: 'Recovery day', color: '#22c55e' },
-  maintenance: { label: 'Maintenance', color: 'var(--text-muted)' },
-  race_morning: { label: 'Race morning', color: '#a855f7' },
-  post_race_recovery: { label: 'Post-race recovery', color: '#ec4899' },
+  carb_loading_day: { label: 'Carb-loading day', color: NUTRITION_CONTEXT_COLOR.carb_loading_day },
+  pre_workout_moderate_carb: { label: 'Pre-workout carbs', color: NUTRITION_CONTEXT_COLOR.pre_workout_moderate_carb },
+  recovery_day: { label: 'Recovery day', color: NUTRITION_CONTEXT_COLOR.recovery_day },
+  maintenance: { label: 'Maintenance', color: NUTRITION_CONTEXT_COLOR.maintenance },
+  race_morning: { label: 'Race morning', color: NUTRITION_CONTEXT_COLOR.race_morning },
+  post_race_recovery: { label: 'Post-race recovery', color: NUTRITION_CONTEXT_COLOR.post_race_recovery },
 }
 
-const RUN_TYPE_COLOR: Record<string, string> = {
-  easy: '#22c55e',
-  tempo: '#f97316',
-  interval: '#ef4444',
-  long: '#3b82f6',
-  race_pace: '#a855f7',
-  recovery: '#6b7280',
-  rest: 'var(--border)',
-}
-
-const FATIGUE_COLOR: Record<string, string> = {
-  low: '#22c55e',
-  moderate: '#f97316',
-  high: '#ef4444',
-}
+const RUN_TYPE_COLOR: Record<string, string> = { ...WORKOUT_TYPE_COLOR, rest: 'var(--border)' }
 
 function formatDaysToRace(days: number): string {
   if (days <= 0) return 'Race day!'
@@ -71,7 +59,7 @@ export default function Dashboard() {
           alignItems: 'center',
         }}>
           <div>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Welcome to BrickHub!</div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Welcome to BrickHub!</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               Set up your running plan to get started — it takes about 2 minutes.
             </div>
@@ -97,9 +85,9 @@ export default function Dashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>
+          <Heading level={1} style={{ marginBottom: 4 }}>
             Good {getTimeOfDay()}, {data.profile.name || 'Athlete'}
-          </h1>
+          </Heading>
           <p style={{ color: 'var(--text-muted)' }}>
             {new Date(data.today + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
@@ -112,7 +100,7 @@ export default function Dashboard() {
             padding: '12px 20px',
             textAlign: 'right',
           }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--accent)' }}>
               {formatDaysToRace(data.race_countdown.days)}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -128,7 +116,7 @@ export default function Dashboard() {
             textAlign: 'right',
           }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Training for</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
               {data.running_goal.replace(/_/g, ' ')}
             </div>
           </div>
@@ -166,7 +154,7 @@ export default function Dashboard() {
                 {data.today_run.description}
               </div>
               {data.today_actual && (
-                <div style={{ marginTop: 8, fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>
                   ✓ Done — <span className="mono">{formatActual(data.today_actual)}</span>{data.today_actual.source === 'imported' ? ' · Strava' : ''}
                 </div>
               )}
@@ -175,7 +163,7 @@ export default function Dashboard() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{
-                  background: '#f97316',
+                  background: 'var(--orange)',
                   color: 'white',
                   borderRadius: 4,
                   padding: '2px 8px',
@@ -299,7 +287,7 @@ export default function Dashboard() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Fatigue</div>
             <div style={{
               fontSize: 18,
-              fontWeight: 700,
+              fontWeight: 600,
               color: FATIGUE_COLOR[data.signals.fatigue_level],
               textTransform: 'capitalize',
             }}>

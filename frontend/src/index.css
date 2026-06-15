@@ -63,6 +63,14 @@
   --space-xl: 32px;
   --space-xxl: 48px;
 
+  /* ── Motion (see DESIGN.md) ────────────────────────────── */
+  --dur-micro: 80ms;   /* taps, toggles */
+  --dur-short: 180ms;  /* hovers, focus, color/border changes */
+  --dur-medium: 320ms; /* panel reveals, larger state shifts */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);     /* enter */
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);      /* exit */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* move */
+
   /* ── Type ──────────────────────────────────────────────── */
   --font: 'Geist', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -109,11 +117,16 @@ h1, h2, h3 {
 a {
   color: var(--accent);
   text-decoration: none;
+  transition: color var(--dur-short) var(--ease-out);
 }
 
 button {
   cursor: pointer;
   font-family: var(--font);
+  transition: background-color var(--dur-short) var(--ease-out),
+              border-color var(--dur-short) var(--ease-out),
+              color var(--dur-short) var(--ease-out),
+              opacity var(--dur-short) var(--ease-out);
 }
 
 input, textarea, select {
@@ -125,10 +138,17 @@ input, textarea, select {
   padding: 8px 12px;
   font-size: 14px;
   outline: none;
+  transition: border-color var(--dur-short) var(--ease-out);
 }
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--accent);
+}
+
+/* Numeric inputs are data — render them in mono with aligned digits. */
+input[type="number"] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Mono for data: paces, durations, distances, HR, IDs, metrics.
@@ -137,4 +157,14 @@ code, kbd, samp, .mono {
   font-family: var(--font-mono);
   font-feature-settings: 'tnum' 1, 'cv01' 1;
   font-variant-numeric: tabular-nums;
+}
+
+/* Respect users who prefer no motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }

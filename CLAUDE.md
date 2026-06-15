@@ -104,6 +104,8 @@ Read these before making changes — they eliminate the need to read source file
 Always read `DESIGN.md` before making any visual or UI decision. All fonts (Geist
 / Geist Mono), colors, spacing, radius, and aesthetic direction are defined there —
 a dark, near-black dashboard adapted from Linear's design system via getdesign.md.
-Do not deviate without explicit user approval. Flag any code that doesn't match
-DESIGN.md (the live app in `frontend/src/index.css` still predates it — see the
-"Current Code Delta" table in DESIGN.md for the migration path).
+Do not deviate without explicit user approval. The app is migrated to this system:
+tokens live in `frontend/src/index.css`, data-viz palettes in `frontend/src/lib/tokens.ts`,
+and heading scale in `frontend/src/components/Type.tsx` (`Heading`/`Text`/`Metric`).
+Use those primitives for new UI; render numeric data with `className="mono"`. Flag any
+code that doesn't match DESIGN.md.

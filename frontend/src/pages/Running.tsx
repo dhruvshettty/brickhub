@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { RefreshCw, Settings2, Undo2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, PlanEditEntry, RunningConfig, DayActivity } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
+import { WORKOUT_TYPE_COLOR } from '../lib/tokens'
+import { Heading } from '../components/Type'
 
 const PLAN_MESSAGES = [
   'Analysing your fitness profile…',
@@ -86,15 +88,7 @@ function PlanGeneratingScreen() {
   )
 }
 
-const RUN_TYPE_COLOR: Record<string, string> = {
-  easy: '#22c55e',
-  tempo: '#f97316',
-  interval: '#ef4444',
-  long: '#3b82f6',
-  race_pace: '#a855f7',
-  recovery: '#6b7280',
-  rest: 'transparent',
-}
+const RUN_TYPE_COLOR: Record<string, string> = { ...WORKOUT_TYPE_COLOR, rest: 'transparent' }
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -287,7 +281,7 @@ export default function Running() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Running</h1>
+          <Heading level={1} style={{ marginBottom: 4 }}>Running</Heading>
           {runningConfig && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{
@@ -455,7 +449,7 @@ export default function Running() {
           borderRadius: 'var(--radius)',
           padding: 16,
           marginBottom: 24,
-          color: '#f97316',
+          color: 'var(--orange)',
           fontSize: 13,
         }}>
           AI coach unavailable. {planData?.message || 'Check your ANTHROPIC_API_KEY in .env.'}
@@ -471,14 +465,14 @@ export default function Running() {
           marginBottom: 24,
           fontSize: 13,
         }}>
-          <p style={{ color: '#f97316', marginBottom: 12 }}>
+          <p style={{ color: 'var(--orange)', marginBottom: 12 }}>
             Your coach adjusted this week's plan. Recalibrating will overwrite those changes. Continue?
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={handleRecalibrate}
               style={{
-                background: '#f97316',
+                background: 'var(--orange)',
                 border: 'none',
                 borderRadius: 6,
                 color: 'white',
@@ -627,7 +621,7 @@ export default function Running() {
                       {day.type === 'rest' ? (
                         isExtra ? (
                           <span style={{
-                            background: '#f97316',
+                            background: 'var(--orange)',
                             color: 'white',
                             borderRadius: 4,
                             padding: '2px 8px',
@@ -675,7 +669,7 @@ export default function Running() {
                             {day.description}
                           </div>
                           {act && (
-                            <div style={{ marginTop: 2, fontSize: 12, color: '#22c55e' }}>
+                            <div style={{ marginTop: 2, fontSize: 12, color: 'var(--green)' }}>
                               Actual: <span className="mono">{actualLabel(act)}</span>{act.source === 'imported' ? ' · Strava' : ''}
                             </div>
                           )}
@@ -762,7 +756,7 @@ export default function Running() {
 
                     {isExtra && !isPastWeek && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                        <span style={{ color: '#22c55e', fontSize: 12, fontWeight: 600 }}>✓ Done</span>
+                        <span style={{ color: 'var(--green)', fontSize: 12, fontWeight: 600 }}>✓ Done</span>
                         <button
                           onClick={() => handleClearLog(day)}
                           disabled={logging === day.date}
@@ -784,13 +778,13 @@ export default function Running() {
                     )}
 
                     {isExtra && isPastWeek && (
-                      <div style={{ fontSize: 12, color: '#22c55e', textAlign: 'right' }}>✓ Done</div>
+                      <div style={{ fontSize: 12, color: 'var(--green)', textAlign: 'right' }}>✓ Done</div>
                     )}
 
                     {day.type !== 'rest' && isPastWeek && (
                       <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'right' }}>
-                        {logState[day.date] === 'done' && <span style={{ color: '#22c55e' }}>✓ Done</span>}
-                        {logState[day.date] === 'missed' && <span style={{ color: '#ef4444' }}>✗ Missed</span>}
+                        {logState[day.date] === 'done' && <span style={{ color: 'var(--green)' }}>✓ Done</span>}
+                        {logState[day.date] === 'missed' && <span style={{ color: 'var(--red)' }}>✗ Missed</span>}
                         {!logState[day.date] && <span style={{ opacity: 0.4 }}>—</span>}
                       </div>
                     )}

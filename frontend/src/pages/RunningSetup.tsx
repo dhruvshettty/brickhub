@@ -8,6 +8,7 @@ import {
   ClassifyResult,
   RunningConfig,
 } from '../lib/api'
+import { Heading } from '../components/Type'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -276,7 +277,7 @@ function Step1({
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>What's your training goal?</h2>
+      <Heading level={2} style={{ marginBottom: 8 }}>What's your training goal?</Heading>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
         This shapes the whole plan — be honest with yourself.
       </p>
@@ -284,7 +285,7 @@ function Step1({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
         {GOAL_OPTIONS.map(g => (
           <div key={g.id} style={tile(trainingGoal === g.id)} onClick={() => setTrainingGoal(g.id)}>
-            <div style={{ fontWeight: 700, fontSize: 13 }}>{g.label}</div>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{g.label}</div>
             <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>{g.desc}</div>
           </div>
         ))}
@@ -329,9 +330,9 @@ function Step1({
       )}
 
       <div style={{ marginBottom: 8 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+        <Heading level={3} style={{ marginBottom: 8 }}>
           {trainingGoal === 'fitness' ? 'Target distance' : 'Goal distance'}
-        </h3>
+        </Heading>
         <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
           {trainingGoal === 'fitness'
             ? 'Choose the distance you want to be able to run comfortably.'
@@ -341,7 +342,7 @@ function Step1({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
         {DISTANCES.map(d => (
           <div key={d.id} style={tile(targetDistance === d.id)} onClick={() => setTargetDistance(d.id)}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{d.label}</div>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{d.label}</div>
             <div className="mono" style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>{d.typical}</div>
           </div>
         ))}
@@ -355,7 +356,7 @@ function Step1({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           {TERRAINS.map(t => (
             <div key={t.id} style={tile(raceTerrain === t.id)} onClick={() => setRaceTerrain(t.id)}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{t.label}</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{t.label}</div>
               <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3 }}>{t.desc}</div>
             </div>
           ))}
@@ -370,7 +371,7 @@ function Step1({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           {TERRAINS.map(t => (
             <div key={t.id} style={tile(trainingTerrain === t.id)} onClick={() => setTrainingTerrain(t.id)}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{t.label}</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{t.label}</div>
               <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3 }}>{t.desc}</div>
             </div>
           ))}
@@ -417,7 +418,7 @@ function Step2({
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Ability assessment</h2>
+      <Heading level={2} style={{ marginBottom: 8 }}>Ability assessment</Heading>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
         Have you run a {distLabel} before?
       </p>
@@ -510,7 +511,7 @@ function Step2({
           )}
           {classifyResult && !classifying && (
             <div style={card}>
-              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
                 Your level: <span style={{ color: 'var(--accent)' }}>{capitalise(classifyResult.adjusted_level)}</span>
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{classifyResult.explanation}</div>
@@ -634,7 +635,7 @@ function Step3({
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Training load & schedule</h2>
+      <Heading level={2} style={{ marginBottom: 8 }}>Training load & schedule</Heading>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
         How have you been training lately, and when do you prefer to run?
       </p>
@@ -686,7 +687,7 @@ function Step3({
           </p>
         )}
         {kmInconsistent && (
-          <p style={{ fontSize: 12, color: '#f97316', marginTop: 6 }}>
+          <p style={{ fontSize: 12, color: 'var(--orange)', marginTop: 6 }}>
             You entered 0 runs but a weekly km average — set the km slider to 0 or increase your recent run count.
           </p>
         )}
@@ -762,7 +763,7 @@ function Step3({
                   ))}
                 </div>
                 {breakReason && (breakReason === 'injury' || breakReason === 'illness') && (
-                  <p style={{ fontSize: 11, color: '#f97316', marginTop: 8 }}>
+                  <p style={{ fontSize: 11, color: 'var(--orange)', marginTop: 8 }}>
                     We'll keep week 1 conservative and avoid high-intensity sessions while you recover.
                   </p>
                 )}
@@ -929,7 +930,7 @@ function Step3({
                     style={tile(volumePreference === v.id)}
                     onClick={() => handleVolumeChange(v.id)}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{v.label}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{v.label}</div>
                     <VolumeGraph points={v.points} active={volumePreference === v.id} />
                     <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>{v.desc}</div>
                   </div>
@@ -948,7 +949,7 @@ function Step3({
                     style={tile(effortPreference === e.id)}
                     onClick={() => handleEffortChange(e.id)}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{e.label}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{e.label}</div>
                     <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>{e.desc}</div>
                   </div>
                 ))}
@@ -977,7 +978,7 @@ function Step3({
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                {isPrimarySport && <span style={{ color: 'white', fontSize: 11, fontWeight: 700 }}>✓</span>}
+                {isPrimarySport && <span style={{ color: 'white', fontSize: 11, fontWeight: 600 }}>✓</span>}
               </div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Running is my primary sport</div>
@@ -1047,7 +1048,7 @@ function Step4({
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Plan timeline</h2>
+      <Heading level={2} style={{ marginBottom: 8 }}>Plan timeline</Heading>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
         {trainingGoal === 'beat_time'
           ? "When is your target race? We'll build a time-goal plan around it."
@@ -1230,7 +1231,7 @@ function Step5({
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Your running plan</h2>
+      <Heading level={2} style={{ marginBottom: 8 }}>Your running plan</Heading>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
         Review your setup before generating.
       </p>
@@ -1264,7 +1265,7 @@ function Step5({
           padding: '16px 20px',
           marginBottom: 28,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 12 }}>
             WEEK 1 PREVIEW
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1522,7 +1523,7 @@ export default function RunningSetup() {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Running Setup</h1>
+        <Heading level={1} style={{ marginBottom: 4 }}>Running Setup</Heading>
         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Step {displayStep} of {totalSteps}</p>
         <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, marginTop: 12 }}>
           <div style={{

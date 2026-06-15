@@ -60,7 +60,7 @@ export default function App() {
         flexShrink: 0,
       }}>
         <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.5px' }}>
+          <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.5px' }}>
             🧱 brickhub
           </span>
         </div>

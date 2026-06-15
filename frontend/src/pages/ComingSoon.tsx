@@ -1,3 +1,5 @@
+import { Heading } from '../components/Type'
+
 interface Props {
   module: string
   milestone: string
@@ -15,7 +17,7 @@ export default function ComingSoon({ module, milestone }: Props) {
       color: 'var(--text-muted)',
     }}>
       <div style={{ fontSize: 48 }}>🔧</div>
-      <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>{module}</h2>
+      <Heading level={2} style={{ color: 'var(--text)' }}>{module}</Heading>
       <p style={{ fontSize: 14 }}>Coming in {milestone}.</p>
       <a
         href="https://github.com/dhruvshettty/brickhub"

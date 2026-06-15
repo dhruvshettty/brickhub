@@ -231,27 +231,11 @@ Touch targets ≥44px on touch viewports. Mono data never wraps mid-token; numbe
 - Don't use `#000000` true black, or `Inter`/system-ui as the display font.
 - Don't introduce a second bright chromatic accent for chrome.
 
-## Current Code Delta (migration notes)
+## Implementation
 
-`frontend/src/index.css` today differs from this spec — bring it in line incrementally:
+The system is live across the app. Where each part lives:
 
-| Token | Current | Target |
-|---|---|---|
-| `--bg` | `#0f0f0f` | `#08090a` (canvas) |
-| `--surface` | `#1a1a1a` | `#0f1011` (surface-1) + add surface-2/3/4 |
-| `--border` | `#2a2a2a` | `#23252a` (hairline) + strong/tertiary |
-| `--text` / `--text-muted` | `#e8e8e8` / `#888` | `#f7f8f8` / `#8a8f98` (+ ink-muted/tertiary) |
-| `--accent` | `#3b82f6` ✅ keep | `#3b82f6` — already correct |
-| `--font` | system stack | Geist (load via Google Fonts / @fontsource) |
-| radius | `8px` ✅ | `md 8px` matches |
-
-Lowest-effort high-impact first move: load Geist + add the surface-2/3/4 and ink-muted/ink-subtle variables, then migrate cards to the ladder.
-
-## Decisions Log
-
-| Date | Decision | Rationale |
-|---|---|---|
-| 2026-06-15 | Adopted Linear design system via getdesign.md | User chose off-the-shelf over custom; Linear is the best structural fit for a data-dense dark dashboard |
-| 2026-06-15 | Accent: Linear lavender `#5e6ad2` → athletic blue `#3b82f6` | Matches the app's existing accent (zero migration) and avoids the purple-SaaS cliché; fits a sports app |
-| 2026-06-15 | Fonts: proprietary Linear Display/Text → Geist + Geist Mono | Free OFL, the doc's recommended open substitute, geometric-grotesk feel preserved |
-| 2026-06-15 | Added module palette + full semantic set | brickhub is a data app, not a marketing page; modules need identity in charts/tags |
+- **Tokens** (colors, surface ladder, type, radius, spacing, motion) — `frontend/src/index.css` `:root`. Old names (`--bg`/`--surface`/`--border`/`--text`/`--accent`/`--green`/`--orange`/`--red`/`--radius`) remain as aliases.
+- **Data-viz palettes** (workout-type, nutrition-context, macro, fatigue, module) — `frontend/src/lib/tokens.ts`. JS literals, because they feed SVG/lucide where CSS vars don't resolve.
+- **Type scale** — `frontend/src/components/Type.tsx` (`Heading`/`Text`/`Metric`). Use these for new UI instead of inline `fontSize`/`fontWeight`.
+- **Numeric data** — `className="mono"` (Geist Mono + tabular-nums), or the global `input[type="number"]` rule.

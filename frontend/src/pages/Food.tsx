@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Settings2 } from 'lucide-react'
+import { WORKOUT_TYPE_COLOR, NUTRITION_CONTEXT_COLOR, MACRO_COLOR } from '../lib/tokens'
 import {
   getFoodConfig,
   getFoodPlan,
@@ -12,6 +13,7 @@ import {
   MealLogEntry,
 } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
+import { Heading } from '../components/Type'
 
 const PLAN_MESSAGES = [
   'Analysing your training schedule…',
@@ -65,23 +67,15 @@ function PlanGeneratingScreen() {
 }
 
 const CONTEXT_LABEL: Record<string, { label: string; color: string }> = {
-  carb_loading_day: { label: 'Carb loading', color: '#3b82f6' },
-  pre_workout_moderate_carb: { label: 'Pre-workout carbs', color: '#f97316' },
-  recovery_day: { label: 'Recovery', color: '#22c55e' },
-  maintenance: { label: 'Maintenance', color: 'var(--text-muted)' },
-  race_morning: { label: 'Race morning', color: '#a855f7' },
-  post_race_recovery: { label: 'Post-race recovery', color: '#ec4899' },
+  carb_loading_day: { label: 'Carb loading', color: NUTRITION_CONTEXT_COLOR.carb_loading_day },
+  pre_workout_moderate_carb: { label: 'Pre-workout carbs', color: NUTRITION_CONTEXT_COLOR.pre_workout_moderate_carb },
+  recovery_day: { label: 'Recovery', color: NUTRITION_CONTEXT_COLOR.recovery_day },
+  maintenance: { label: 'Maintenance', color: NUTRITION_CONTEXT_COLOR.maintenance },
+  race_morning: { label: 'Race morning', color: NUTRITION_CONTEXT_COLOR.race_morning },
+  post_race_recovery: { label: 'Post-race recovery', color: NUTRITION_CONTEXT_COLOR.post_race_recovery },
 }
 
-const SESSION_COLOR: Record<string, string> = {
-  easy: '#22c55e',
-  tempo: '#f97316',
-  interval: '#ef4444',
-  long: '#3b82f6',
-  race_pace: '#a855f7',
-  recovery: '#6b7280',
-  rest: 'var(--border)',
-}
+const SESSION_COLOR: Record<string, string> = { ...WORKOUT_TYPE_COLOR, rest: 'var(--border)' }
 
 function formatDate(dateStr: string): { day: string; weekday: string } {
   const d = new Date(dateStr + 'T00:00:00')
@@ -286,7 +280,7 @@ export default function Food() {
   if (!planData?.plan) {
     return (
       <div style={{ maxWidth: 480 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Nutrition</h1>
+        <Heading level={1} style={{ marginBottom: 8 }}>Nutrition</Heading>
         {planData?.ai_unavailable ? (
           <div style={{
             background: 'rgba(239,68,68,0.08)',
@@ -339,11 +333,11 @@ export default function Food() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Nutrition</h1>
+          <Heading level={1} style={{ marginBottom: 4 }}>Nutrition</Heading>
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
             Week of {new Date(plan.week_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             {plan.race_week && (
-              <span style={{ marginLeft: 8, color: '#a855f7', fontWeight: 600 }}>Race week</span>
+              <span style={{ marginLeft: 8, color: 'var(--module-gym)', fontWeight: 600 }}>Race week</span>
             )}
           </p>
         </div>
@@ -393,7 +387,7 @@ export default function Food() {
               }}
             >
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{weekday}</div>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{dayNum}</div>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{dayNum}</div>
               {day.session_type !== 'rest' && (
                 <div style={{
                   width: 6, height: 6,
@@ -428,9 +422,9 @@ export default function Food() {
           {/* Meals */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700 }}>
+              <Heading level={2} style={{ fontSize: 17 }}>
                 {new Date(selectedDay.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              </h2>
+              </Heading>
               <span style={{
                 fontSize: 11,
                 fontWeight: 600,
@@ -500,9 +494,9 @@ export default function Food() {
               </div>
 
               {[
-                { label: 'Carbs', key: 'carbs_g', color: '#3b82f6' },
-                { label: 'Protein', key: 'protein_g', color: '#22c55e' },
-                { label: 'Fat', key: 'fat_g', color: '#f97316' },
+                { label: 'Carbs', key: 'carbs_g', color: MACRO_COLOR.carbs },
+                { label: 'Protein', key: 'protein_g', color: MACRO_COLOR.protein },
+                { label: 'Fat', key: 'fat_g', color: MACRO_COLOR.fat },
               ].map(({ label, key, color }) => {
                 const target = selectedDay.targets[key as keyof typeof selectedDay.targets] as number
                 const logged = dayLogs.reduce((sum, l) => sum + ((l[key as keyof typeof l] as number) || 0), 0)

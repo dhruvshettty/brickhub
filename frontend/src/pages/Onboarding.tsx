@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Activity, Bike, Dumbbell, Fish, Salad } from 'lucide-react'
 import { updateProfile } from '../lib/api'
+import { MODULE_COLOR } from '../lib/tokens'
+import { Heading } from '../components/Type'
 
 const MODULES = [
-  { icon: Activity, label: 'Running', color: '#3b82f6', available: true },
-  { icon: Bike, label: 'Biking', color: '#f97316', available: false },
-  { icon: Fish, label: 'Swimming', color: '#06b6d4', available: false },
-  { icon: Dumbbell, label: 'Gym', color: '#a855f7', available: false },
-  { icon: Salad, label: 'Food', color: '#22c55e', available: true },
+  { icon: Activity, label: 'Running', color: MODULE_COLOR.running, available: true },
+  { icon: Bike, label: 'Biking', color: MODULE_COLOR.biking, available: false },
+  { icon: Fish, label: 'Swimming', color: MODULE_COLOR.swimming, available: false },
+  { icon: Dumbbell, label: 'Gym', color: MODULE_COLOR.gym, available: false },
+  { icon: Salad, label: 'Food', color: MODULE_COLOR.food, available: true },
 ]
 
 // Pentagon positions (cx, cy) for 5 nodes, top-center first, clockwise
@@ -97,9 +99,9 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '60px 24px' }}>
       <div style={{ marginBottom: 48 }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>🧱</div>
-        <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-1px', marginBottom: 16 }}>
+        <Heading level={1} style={{ fontSize: 32, letterSpacing: '-1px', marginBottom: 16 }}>
           Welcome to Brickhub
-        </h1>
+        </Heading>
         <p style={{ fontSize: 16, color: 'var(--text-muted)', lineHeight: 1.7, maxWidth: 480 }}>
           Your personal triathlon coach — running, biking, swimming, gym, and nutrition, all in one place.
           Each module learns from the others so your plans always reflect your full training picture.
@@ -107,7 +109,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       </div>
 
       <div style={{ marginBottom: 48 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Your modules</h2>
+        <Heading level={2} style={{ fontSize: 18, marginBottom: 8 }}>Your modules</Heading>
         <p style={{ color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.6 }}>
           Each discipline is its own module. Set them up whenever you're ready — you don't need all five active at once.
           Running and Food are available now, with the rest coming soon.
@@ -136,7 +138,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       </div>
 
       <div style={{ marginBottom: 56 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Cross-module intelligence</h2>
+        <Heading level={2} style={{ fontSize: 18, marginBottom: 8 }}>Cross-module intelligence</Heading>
         <p style={{ color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.6 }}>
           Brickhub reads signals across your training — fatigue from a long ride adjusts your dinner plan,
           gym soreness shapes your swim intensity, race week taper flows into every module automatically.
@@ -243,9 +245,9 @@ function ProfileStep() {
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '60px 24px' }}>
-      <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.5px', marginBottom: 8 }}>
+      <Heading level={1} style={{ fontSize: 26, letterSpacing: '-0.5px', marginBottom: 8 }}>
         Tell us about yourself
-      </h1>
+      </Heading>
       <p style={{ color: 'var(--text-muted)', marginBottom: 40, lineHeight: 1.6 }}>
         This helps your coach calibrate training loads, nutrition targets, and recovery recommendations to you specifically.
       </p>
@@ -289,8 +291,8 @@ function ProfileStep() {
                       padding: '10px 0',
                       borderRadius: 'var(--radius)',
                       border: `1px solid ${form.sex === s ? 'var(--accent)' : 'var(--border)'}`,
-                      background: form.sex === s ? 'var(--accent)' : 'var(--surface)',
-                      color: form.sex === s ? '#fff' : 'var(--text-muted)',
+                      background: form.sex === s ? 'var(--surface-2)' : 'var(--surface)',
+                      color: form.sex === s ? 'var(--accent)' : 'var(--text-muted)',
                       fontSize: 13,
                       fontWeight: form.sex === s ? 600 : 400,
                       cursor: 'pointer',
@@ -316,8 +318,8 @@ function ProfileStep() {
                     padding: '10px 0',
                     borderRadius: 'var(--radius)',
                     border: `1px solid ${units === u ? 'var(--accent)' : 'var(--border)'}`,
-                    background: units === u ? 'var(--accent)' : 'var(--surface)',
-                    color: units === u ? '#fff' : 'var(--text-muted)',
+                    background: units === u ? 'var(--surface-2)' : 'var(--surface)',
+                    color: units === u ? 'var(--accent)' : 'var(--text-muted)',
                     fontSize: 13,
                     fontWeight: units === u ? 600 : 400,
                     cursor: 'pointer',

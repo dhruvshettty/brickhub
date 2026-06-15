@@ -38,7 +38,7 @@ function PlanChangeDiff({ change, onConfirm, onDismiss, applying }: PlanChangeDi
         background: 'rgba(99,102,241,0.12)',
         padding: '8px 12px',
         fontSize: 11,
-        fontWeight: 700,
+        fontWeight: 600,
         letterSpacing: '0.05em',
         color: 'var(--accent)',
       }}>
@@ -296,7 +296,7 @@ export default function CoachPanel({
                 <ReactMarkdown
                   components={{
                     p: ({ children }) => <p style={{ margin: '0 0 6px' }}>{children}</p>,
-                    strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+                    strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
                     em: ({ children }) => <em>{children}</em>,
                     ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ul>,
                     ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ol>,
@@ -324,7 +324,7 @@ export default function CoachPanel({
               <div style={{
                 marginTop: 8,
                 fontSize: 11,
-                color: '#22c55e',
+                color: 'var(--green)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,

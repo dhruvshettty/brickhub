@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getProfile, updateProfile, Profile } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 import StravaCard from '../components/StravaCard'
+import { Heading } from '../components/Type'
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -50,7 +51,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ maxWidth: 560 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 32 }}>Settings</h1>
+      <Heading level={1} style={{ marginBottom: 32 }}>Settings</Heading>
 
       <Card style={{ marginBottom: 16 }}>
         <CardTitle>Profile</CardTitle>
@@ -90,8 +91,8 @@ export default function SettingsPage() {
                       padding: '8px 0',
                       borderRadius: 'var(--radius)',
                       border: `1px solid ${profile.sex === s ? 'var(--accent)' : 'var(--border)'}`,
-                      background: profile.sex === s ? 'var(--accent)' : 'var(--surface)',
-                      color: profile.sex === s ? '#fff' : 'var(--text-muted)',
+                      background: profile.sex === s ? 'var(--surface-2)' : 'var(--surface)',
+                      color: profile.sex === s ? 'var(--accent)' : 'var(--text-muted)',
                       fontSize: 13,
                       fontWeight: profile.sex === s ? 600 : 400,
                       cursor: 'pointer',
@@ -117,8 +118,8 @@ export default function SettingsPage() {
                   padding: '8px 0',
                   borderRadius: 'var(--radius)',
                   border: `1px solid ${profile.unit_preference === u ? 'var(--accent)' : 'var(--border)'}`,
-                  background: profile.unit_preference === u ? 'var(--accent)' : 'var(--surface)',
-                  color: profile.unit_preference === u ? '#fff' : 'var(--text-muted)',
+                  background: profile.unit_preference === u ? 'var(--surface-2)' : 'var(--surface)',
+                  color: profile.unit_preference === u ? 'var(--accent)' : 'var(--text-muted)',
                   fontSize: 13,
                   fontWeight: profile.unit_preference === u ? 600 : 400,
                   cursor: 'pointer',

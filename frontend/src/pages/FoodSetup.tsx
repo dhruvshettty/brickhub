@@ -99,7 +99,7 @@ export default function FoodSetup() {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Set up Nutrition</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>Set up Nutrition</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
           Step {step} of {TOTAL_STEPS}
         </p>

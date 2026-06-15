@@ -125,7 +125,7 @@ export default function StravaCard() {
               </div>
               {imported.map(a => (
                 <div key={a.external_id} style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>
-                  ✓ {a.name || 'Run'} — {activityLine(a)}
+                  ✓ {a.name || 'Run'} — <span className="mono">{activityLine(a)}</span>
                 </div>
               ))}
             </div>
@@ -145,7 +145,7 @@ export default function StravaCard() {
                   }}
                 >
                   <div style={{ fontSize: 12 }}>
-                    <div>{a.name || 'Run'} — {activityLine(a)}</div>
+                    <div>{a.name || 'Run'} — <span className="mono">{activityLine(a)}</span></div>
                     <div style={{ color: 'var(--text-muted)' }}>{REASON_LABEL[a.reason || ''] || a.reason}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
