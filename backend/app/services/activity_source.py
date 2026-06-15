@@ -44,6 +44,22 @@ class OAuthTokens:
     athlete_id: str | None = None
 
 
+@dataclass
+class AthleteProfile:
+    """A normalized athlete profile, source-agnostic.
+
+    Only the fields an activity provider can actually return. age and height
+    are deliberately absent — Strava (and most activity APIs) do not expose
+    them, so they stay user-entered at onboarding.
+    """
+
+    athlete_id: str | None = None
+    name: str | None = None
+    sex: str | None = None              # "Male" | "Female"
+    weight_kg: float | None = None
+    unit_preference: str | None = None  # "metric" | "imperial"
+
+
 class ActivitySource(ABC):
     """A provider that can authorize a user and return their activities."""
 
@@ -61,4 +77,8 @@ class ActivitySource(ABC):
 
     @abstractmethod
     def fetch_activities(self, access_token: str, after: datetime) -> list[Activity]:
+        ...
+
+    @abstractmethod
+    def fetch_athlete(self, access_token: str) -> AthleteProfile:
         ...

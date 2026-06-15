@@ -12,13 +12,16 @@ from urllib.parse import urlencode
 import httpx
 
 from app.core.config import settings
-from app.services.activity_source import Activity, ActivitySource, OAuthTokens
+from app.services.activity_source import Activity, ActivitySource, AthleteProfile, OAuthTokens
 
 _OAUTH_BASE = "https://www.strava.com/oauth"
 _API_BASE = "https://www.strava.com/api/v3"
 # read_all (not plain read) so the athlete's PRIVATE activities import too —
-# otherwise private runs silently never sync.
-_SCOPE = "activity:read_all"
+# otherwise private runs silently never sync. profile:read_all so GET /athlete
+# returns weight + measurement_preference (private fields) for onboarding prefill.
+# Adding profile:read_all forces a one-time reconnect for an already-connected
+# athlete — acceptable for the single self-host user.
+_SCOPE = "activity:read_all,profile:read_all"
 _TIMEOUT = 20.0
 _PER_PAGE = 100
 
@@ -106,6 +109,33 @@ class StravaAdapter(ActivitySource):
                 break
             page += 1
         return activities
+
+    def fetch_athlete(self, access_token: str) -> AthleteProfile:
+        resp = httpx.get(
+            f"{_API_BASE}/athlete",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return self._athlete_from(resp.json())
+
+    @staticmethod
+    def _athlete_from(a: dict) -> AthleteProfile:
+        first = (a.get("firstname") or "").strip()
+        last = (a.get("lastname") or "").strip()
+        name = " ".join(p for p in (first, last) if p) or None
+        # Strava sex is "M"/"F"; the app stores "Male"/"Female" (onboarding buttons).
+        sex = {"M": "Male", "F": "Female"}.get(a.get("sex") or "")
+        weight = a.get("weight")
+        # Strava measurement_preference is "feet"/"meters".
+        units = {"feet": "imperial", "meters": "metric"}.get(a.get("measurement_preference") or "")
+        return AthleteProfile(
+            athlete_id=str(a["id"]) if a.get("id") is not None else None,
+            name=name,
+            sex=sex,
+            weight_kg=round(float(weight), 1) if weight else None,
+            unit_preference=units,
+        )
 
     @staticmethod
     def _tokens_from(data: dict) -> OAuthTokens:

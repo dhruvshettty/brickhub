@@ -59,8 +59,12 @@ export const matchStravaActivity = (data: StravaMatchRequest) =>
   )
 export const disconnectStrava = () =>
   request<{ disconnected: boolean }>('/strava/disconnect', { method: 'POST' })
+export const getStravaOnboardingPrefill = () =>
+  request<StravaPrefillResponse>('/strava/onboarding-prefill')
 // OAuth is a browser redirect, so it must hit the API host directly (not the relative proxy path).
-export const stravaAuthorizeUrl = 'http://localhost:8000/api/v1/strava/authorize'
+// `returnTo` is echoed back through Strava so the callback returns to the right page.
+export const stravaAuthorizeUrl = (returnTo: 'onboarding' | 'settings' = 'settings') =>
+  `http://localhost:8000/api/v1/strava/authorize?return_to=${returnTo}`
 
 // Types
 export interface Profile {
@@ -413,6 +417,26 @@ export interface StravaSyncResult {
   imported: StravaActivity[]
   ambiguous: StravaActivity[]
   last_synced_at?: string
+  profile_changes?: Record<string, StravaProfileChange>
+}
+
+// Onboarding profile prefill. Only fields Strava actually returns; age/height absent.
+export interface StravaProfilePrefill {
+  name?: string
+  sex?: string
+  weight_kg?: number
+  unit_preference?: 'metric' | 'imperial'
+}
+
+export interface StravaPrefillResponse {
+  connected: boolean
+  prefill: StravaProfilePrefill
+  error?: string
+}
+
+export interface StravaProfileChange {
+  current: string | number | null
+  strava: string | number
 }
 
 export interface StravaMatchRequest {

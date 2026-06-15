@@ -18,8 +18,9 @@ from app.core.database import Base
 from app.models.plan import WeeklyPlan
 from app.models.profile import Profile
 from app.models.workout import ModuleType, WorkoutLog, WorkoutSource
-from app.services import strava_sync
-from app.services.activity_source import Activity, ActivitySource, OAuthTokens
+from app.api.v1 import strava as strava_api
+from app.services import strava_onboarding, strava_sync
+from app.services.activity_source import Activity, ActivitySource, AthleteProfile, OAuthTokens
 from app.services.strava_adapter import StravaAdapter
 
 
@@ -39,10 +40,14 @@ def act(ext_id, day: date, type="Run", dur=40.0, dist=8.0, hr=150) -> Activity:
 class FakeSource(ActivitySource):
     """Canned ActivitySource — no network."""
 
-    def __init__(self, activities, expires_at=9_999_999_999):
+    def __init__(self, activities, expires_at=9_999_999_999, athlete=None):
         self._activities = activities
         self._expires = expires_at
         self.refreshed = False
+        self._athlete = athlete or AthleteProfile(
+            athlete_id="99", name="Test Athlete", sex="Male",
+            weight_kg=72.0, unit_preference="metric",
+        )
 
     def authorize_url(self, redirect_uri, state=None):
         return "https://example.test/authorize"
@@ -56,6 +61,9 @@ class FakeSource(ActivitySource):
 
     def fetch_activities(self, access_token, after):
         return [a for a in self._activities if a.start >= after]
+
+    def fetch_athlete(self, access_token):
+        return self._athlete
 
 
 @pytest.fixture
@@ -166,11 +174,79 @@ class TestAdapterNormalization:
         assert t2.athlete_id is None
 
     def test_authorize_url_requests_private_scope(self):
-        url = StravaAdapter("cid", "secret").authorize_url("http://localhost:8000/cb")
-        # read_all so private runs import; client + redirect echoed back
-        assert "scope=activity%3Aread_all" in url
+        url = StravaAdapter("cid", "secret").authorize_url("http://localhost:8000/cb", state="onboarding")
+        # read_all so private runs import; profile:read_all so weight/units prefill
+        assert "activity%3Aread_all" in url
+        assert "profile%3Aread_all" in url
         assert "client_id=cid" in url
         assert "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcb" in url
+        assert "state=onboarding" in url
+
+
+# ── athlete profile normalization + onboarding prefill ──────────────────────
+
+class TestAthleteNormalization:
+    def test_full_payload(self):
+        a = StravaAdapter._athlete_from({
+            "id": 123, "firstname": "Dhruv", "lastname": "Shetty",
+            "sex": "M", "weight": 71.5, "measurement_preference": "meters",
+        })
+        assert a.athlete_id == "123"
+        assert a.name == "Dhruv Shetty"
+        assert a.sex == "Male"
+        assert a.weight_kg == 71.5
+        assert a.unit_preference == "metric"
+
+    def test_imperial_female(self):
+        a = StravaAdapter._athlete_from({"id": 1, "sex": "F", "measurement_preference": "feet"})
+        assert a.sex == "Female"
+        assert a.unit_preference == "imperial"
+
+    def test_missing_fields_are_none(self):
+        a = StravaAdapter._athlete_from({"id": 1})
+        assert a.name is None and a.sex is None
+        assert a.weight_kg is None and a.unit_preference is None
+
+    def test_zero_weight_treated_as_unset(self):
+        assert StravaAdapter._athlete_from({"id": 1, "weight": 0}).weight_kg is None
+
+
+class TestOnboardingPrefill:
+    def test_prefill_drops_nulls(self):
+        p = strava_onboarding.prefill_from_athlete(
+            AthleteProfile(name="A", sex=None, weight_kg=70.0, unit_preference=None)
+        )
+        assert p == {"name": "A", "weight_kg": 70.0}
+
+    def test_diff_flags_changed_only(self, db):
+        prof = seed_profile(db, sex="Male", weight_kg=72.0, unit_preference="metric")
+        diff = strava_onboarding.diff_against_profile(
+            {"name": "Real Name", "sex": "Male", "weight_kg": 75.0, "unit_preference": "metric"},
+            prof,
+        )
+        assert diff["name"]["strava"] == "Real Name"   # name differs from default "Athlete"
+        assert diff["weight_kg"]["strava"] == 75.0      # > epsilon
+        assert "sex" not in diff and "unit_preference" not in diff
+
+    def test_diff_weight_epsilon_ignored(self, db):
+        prof = seed_profile(db, weight_kg=72.0)
+        assert strava_onboarding.diff_against_profile({"weight_kg": 72.05}, prof) == {}
+
+    def test_diff_blank_local_is_change(self, db):
+        prof = seed_profile(db)  # weight_kg is None
+        diff = strava_onboarding.diff_against_profile({"weight_kg": 70.0}, prof)
+        assert diff["weight_kg"] == {"current": None, "strava": 70.0}
+
+
+class TestReturnPathWhitelist:
+    """Open-redirect guard: callback only honors known frontend paths."""
+
+    def test_known_paths(self):
+        assert strava_api._RETURN_PATHS.get("onboarding") == "/onboarding"
+        assert strava_api._RETURN_PATHS.get("settings") == "/settings"
+
+    def test_unknown_state_falls_back(self):
+        assert strava_api._RETURN_PATHS.get("https://evil.test", strava_api._DEFAULT_RETURN) == "/settings"
 
 
 # ── sync orchestration (DB) ──────────────────────────────────────────────────

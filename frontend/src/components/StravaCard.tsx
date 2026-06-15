@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import Card, { CardTitle } from './Card'
 import {
-  getStravaStatus, syncStrava, disconnectStrava, matchStravaActivity,
-  stravaAuthorizeUrl, StravaStatus, StravaActivity,
+  getStravaStatus, syncStrava, disconnectStrava, matchStravaActivity, updateProfile,
+  stravaAuthorizeUrl, StravaStatus, StravaActivity, StravaProfileChange, Profile,
 } from '../lib/api'
 
 const STRAVA_ORANGE = '#fc4c02'
@@ -11,6 +11,13 @@ const REASON_LABEL: Record<string, string> = {
   no_planned_session: 'No planned session that day',
   multiple_activities: 'Multiple runs that day',
   already_logged: 'Day already logged',
+}
+
+const PROFILE_FIELD_LABEL: Record<string, string> = {
+  name: 'Name',
+  sex: 'Sex',
+  weight_kg: 'Weight (kg)',
+  unit_preference: 'Units',
 }
 
 function activityLine(a: StravaActivity): string {
@@ -26,6 +33,7 @@ export default function StravaCard() {
   const [syncing, setSyncing] = useState(false)
   const [imported, setImported] = useState<StravaActivity[]>([])
   const [ambiguous, setAmbiguous] = useState<StravaActivity[]>([])
+  const [profileChanges, setProfileChanges] = useState<Record<string, StravaProfileChange> | null>(null)
   const [banner, setBanner] = useState<string | null>(null)
 
   const refresh = () => getStravaStatus().then(setStatus).catch(() => {})
@@ -47,6 +55,8 @@ export default function StravaCard() {
       const res = await syncStrava(true)
       setImported(res.imported || [])
       setAmbiguous(res.ambiguous || [])
+      const changes = res.profile_changes || {}
+      setProfileChanges(Object.keys(changes).length ? changes : null)
       await refresh()
     } catch {
       setBanner('Sync failed — your Strava connection may need reauthorizing.')
@@ -66,6 +76,19 @@ export default function StravaCard() {
 
   const dismiss = (a: StravaActivity) =>
     setAmbiguous(prev => prev.filter(x => x.external_id !== a.external_id))
+
+  // Surface-and-confirm: profile changes never auto-apply. The user accepts them
+  // here, which writes through the same PUT /settings/profile the form uses.
+  const applyProfileChanges = async () => {
+    if (!profileChanges) return
+    const patch: Partial<Profile> = {}
+    for (const [field, change] of Object.entries(profileChanges)) {
+      (patch as Record<string, unknown>)[field] = change.strava
+    }
+    await updateProfile(patch)
+    setProfileChanges(null)
+    setBanner('✓ Profile updated from Strava.')
+  }
 
   if (!status) return null
 
@@ -95,7 +118,7 @@ export default function StravaCard() {
             Connect Strava to auto-import completed runs — no more marking sessions done by hand.
           </div>
           <button
-            onClick={() => { window.location.href = stravaAuthorizeUrl }}
+            onClick={() => { window.location.href = stravaAuthorizeUrl('settings') }}
             style={{ ...btn, background: STRAVA_ORANGE, border: 'none', color: '#fff' }}
           >
             Connect with Strava
@@ -117,6 +140,28 @@ export default function StravaCard() {
               Disconnect
             </button>
           </div>
+
+          {profileChanges && (
+            <div style={{ marginBottom: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                Profile changes on Strava
+              </div>
+              {Object.entries(profileChanges).map(([field, c]) => (
+                <div key={field} style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>
+                  {PROFILE_FIELD_LABEL[field] || field}:{' '}
+                  <span className="mono">{c.current ?? '—'} → {c.strava}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={applyProfileChanges} style={{ ...btn, padding: '4px 10px', fontSize: 12 }}>
+                  Update profile
+                </button>
+                <button onClick={() => setProfileChanges(null)} style={{ ...btn, padding: '4px 10px', fontSize: 12, color: 'var(--text-muted)' }}>
+                  Keep mine
+                </button>
+              </div>
+            </div>
+          )}
 
           {imported.length > 0 && (
             <div style={{ marginBottom: 12 }}>

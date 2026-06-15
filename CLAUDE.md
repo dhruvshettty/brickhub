@@ -29,8 +29,12 @@ backend/app/
     coach_service.py         chat() — builds system prompt, parses <plan_change> blocks
     workout_adjuster.py      recalibrate_running() — Haiku-based weekly recalibration
     running_ability.py       Deterministic classify(), suggest_weekly_runs() — no Claude
+    activity_source.py       ActivitySource interface + Activity / AthleteProfile / OAuthTokens
+    strava_adapter.py        StravaAdapter — OAuth, fetch_activities(), fetch_athlete()
+    strava_sync.py           sync() — activity→WorkoutLog matching, token refresh
+    strava_onboarding.py     profile prefill + diff (onboarding autofill, settings sync)
   api/v1/        Route handlers — one file per module
-  alembic/       Migrations 001–008
+  alembic/       Migrations 001–010
 
 frontend/src/
   lib/api.ts     All API calls + TypeScript types (single source of truth for API contracts)
@@ -75,6 +79,18 @@ API docs auto-generated at `http://localhost:8000/docs` when running.
 | GET | `/food/plan?week_start=` | Returns cached plan + meal_logs. Generates if missing. Past weeks return `plan: null`. |
 | POST | `/food/log` | Log a meal slot against a date. |
 | DELETE | `/food/log/{id}` | Clear a meal log entry. |
+
+## Strava — Key Endpoints
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/strava/status` | `configured` / `connected` + last sync cursor + athlete id. |
+| GET | `/strava/authorize?return_to=` | Redirect to Strava OAuth. `return_to` = `onboarding` \| `settings`, round-tripped via `state` (whitelisted on callback). |
+| GET | `/strava/callback` | Exchange code, store token on Profile, redirect back to the `return_to` page. |
+| GET | `/strava/onboarding-prefill` | Suggested profile fields (name / sex / weight / units) from the Strava athlete. Read-only, not persisted. |
+| POST | `/strava/sync?force=` | Import completed runs → WorkoutLog. Returns `imported` / `ambiguous` + `profile_changes` (diff to confirm). |
+| POST | `/strava/match` | Manually attach an ambiguous activity to a planned date. |
+| POST | `/strava/disconnect` | Clear token + delete imported workouts. |
 
 ## Adding a New Module
 

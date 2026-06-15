@@ -252,16 +252,68 @@ complexity, not the product; real data just feeds it truth instead of guesses.
 - [ ] Polish (deferred): "Imported from Strava" badge on the Running page day cards — imports show
       in the Settings sync summary today, but day_logs would need a `source` field to badge per-day
 
-**Manual setup (self-hoster, one-time):** register an app at strava.com/settings/api with
-Authorization Callback Domain `localhost`, put the client id/secret in `.env`, restart, then
-Settings → Connect with Strava.
-
 ### Phase 2 — Recalibration off actuals (deltas)
 - [ ] Compute derived per-session deltas: actual vs prescribed pace/duration/distance; weekly
       actual volume vs planned
 - [ ] Inject deltas (derived, not raw splits) into recalibration prompt so next week's plan
       reacts to real results
 - [ ] Tests: delta computation; prompt-boundary test asserting no raw activity fields reach Claude
+
+### Phase 3 — Strava onboarding profile prefill ✅ Done
+
+Connect Strava at app onboarding (M0 `ProfileStep`) to prefill personal info instead of
+typing it. Reuses the existing OAuth/token infra (Phase 1). Respects the AI-clause boundary:
+prefill emits scalar suggestions the user reviews and saves; raw Strava data never reaches a
+prompt. Profile values become the user's own data once confirmed.
+
+Design decisions (from review, 2026-06-15):
+- **Connect-first, suggest-and-confirm.** OAuth is a full-page redirect that wipes React form
+  state, so the connect button sits at the top of `ProfileStep` as the first action. On return,
+  the frontend calls the prefill endpoint, populates editable fields, the user adds what's
+  missing (age, height), and saves via the existing `PUT /settings/profile`. Nothing persists
+  until save — no clobber, preserves the confirm seam.
+- **Sync surfaces profile diffs.** Settings "Sync" compares Strava profile against local Profile
+  and shows changes for the user to confirm before applying — never silently overwrites (same
+  confirm seam as onboarding).
+- **age + height are NOT in the Strava API** — always user-entered.
+
+Tasks:
+- [x] Adapter `fetch_athlete()` → name, sex, weight, measurement_preference (units). Added
+      `profile:read_all` to `_SCOPE` (one-time reconnect for the single self-host user); name/sex
+      come from `GET /athlete`.
+- [x] `strava_onboarding.py`: build prefill payload (profile fields) + Strava-vs-Profile diff.
+      The aggregation/confirm seam — emits scalars only, never raw athlete/activity JSON.
+- [x] `GET /strava/onboarding-prefill` → suggested profile values (not persisted; graceful empty on failure).
+- [x] State-aware OAuth: `/authorize?return_to=onboarding` carries return path via `state`;
+      `/callback` branches the redirect (`/onboarding` vs `/settings`), with `state` whitelisted.
+- [x] `Onboarding.tsx` `ProfileStep`: "Connect Strava to autofill" at top; populate editable
+      fields on return; jumps straight to the profile step when returning from OAuth.
+- [x] Settings `StravaCard`: profile-diff section — surface Strava-vs-local changes, confirm to apply.
+- [x] Backend tests: `fetch_athlete` normalization + scope; prefill null-drop; diff
+      (changed / epsilon / blank-local); return-path whitelist guard (55 pass, `tsc` clean).
+- [ ] Deferred: frontend / E2E tests (no FE test runner). Live OAuth round-trip still needs a
+      manual check with real `STRAVA_CLIENT_*` + a one-time reconnect for the new scope.
+
+### Phase 4 — Strava running-onboarding prefill (history) 🔲 Future (deferred)
+
+Use Strava history to prefill the running-onboarding fields that feed **plan generation**, so the
+user confirms instead of self-reporting. Deferred — this is plan-generation input, separate from
+the M0 profile prefill (Phase 3). Same AI-clause boundary: derived aggregates the user confirms,
+never raw activity JSON to a prompt.
+
+- [ ] Adapter `fetch_stats()` → `recent_run_totals` (count + distance, last 4 weeks) → prefill
+      `recent_runs_4_weeks`, `current_weekly_km`.
+- [ ] Run-day pattern from `fetch_activities` → suggest `preferred_days` / `long_run_day`.
+- [ ] Ability auto-classify (option undecided): (A) skip — keep manual race-time entry; (B)
+      `best_efforts` per standard distance via per-activity detail fetch — accurate but N calls +
+      rate-limit/latency + race-vs-training ambiguity; (C) avg recent pace — cheap but
+      underestimates ability → plan too easy. Lean A for a first cut, B as the complete version.
+- [ ] Replace self-reported volume in `_running_config_context` (`plan_generator.py:106`) with the
+      Strava-derived aggregates the user confirmed.
+- [ ] **Live-derived metrics:** stop freezing `recent_runs_4_weeks` / `current_weekly_km` as static
+      config snapshots; derive on demand from `WorkoutLog` (kept current by sync) so the dashboard +
+      recalibration reflect real current load, not signup-day values. Config keeps only the
+      onboarding seed value.
 
 ### Future (deferred — most need a device-direct source, not Strava)
 - [ ] Additional adapters: Suunto (APIZone partner program), Garmin, Apple Health, Manual

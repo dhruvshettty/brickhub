@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Activity, Bike, Dumbbell, Fish, Salad } from 'lucide-react'
-import { updateProfile } from '../lib/api'
+import {
+  getStravaOnboardingPrefill, stravaAuthorizeUrl, updateProfile, StravaProfilePrefill,
+} from '../lib/api'
 import { MODULE_COLOR } from '../lib/tokens'
 import { Heading } from '../components/Type'
+
+const STRAVA_ORANGE = '#fc4c02'
 
 const MODULES = [
   { icon: Activity, label: 'Running', color: MODULE_COLOR.running, available: true },
@@ -181,8 +185,50 @@ function ProfileStep() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [stravaBanner, setStravaBanner] = useState('')
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  // Apply Strava suggestions to the form (editable, not saved). weight is stored
+  // in kg but the input shows display units, so convert. Returns how many fields
+  // were filled, for the banner copy.
+  const applyPrefill = (p: StravaProfilePrefill): number => {
+    const nextUnits = p.unit_preference === 'imperial' || p.unit_preference === 'metric'
+      ? p.unit_preference : units
+    if (p.unit_preference) setUnits(nextUnits)
+    setForm(f => ({
+      ...f,
+      name: p.name ?? f.name,
+      sex: p.sex ?? f.sex,
+      weight: p.weight_kg != null
+        ? String(Math.round((nextUnits === 'imperial' ? p.weight_kg / 0.453592 : p.weight_kg) * 10) / 10)
+        : f.weight,
+    }))
+    return [p.name, p.sex, p.weight_kg, p.unit_preference].filter(v => v != null).length
+  }
+
+  // Connect-first, suggest-and-confirm: the OAuth round-trip returns here with
+  // ?strava=connected, then we pull the profile suggestions into the form.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const s = params.get('strava')
+    if (s) window.history.replaceState({}, '', window.location.pathname)
+    if (s === 'error') {
+      setStravaBanner('Strava connection failed — enter your details manually.')
+    } else if (s === 'connected') {
+      getStravaOnboardingPrefill()
+        .then(res => {
+          const filled = applyPrefill(res.prefill)
+          setStravaBanner(
+            res.error || filled === 0
+              ? 'Connected, but Strava had no profile details to pull — enter them manually.'
+              : `✓ Autofilled ${filled} field${filled > 1 ? 's' : ''} from Strava. Check and complete below.`,
+          )
+        })
+        .catch(() => setStravaBanner('Connected, but autofill failed — enter your details manually.'))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -248,9 +294,29 @@ function ProfileStep() {
       <Heading level={1} style={{ fontSize: 26, letterSpacing: '-0.5px', marginBottom: 8 }}>
         Tell us about yourself
       </Heading>
-      <p style={{ color: 'var(--text-muted)', marginBottom: 40, lineHeight: 1.6 }}>
+      <p style={{ color: 'var(--text-muted)', marginBottom: 28, lineHeight: 1.6 }}>
         This helps your coach calibrate training loads, nutrition targets, and recovery recommendations to you specifically.
       </p>
+
+      {/* Connect-first autofill. Optional — the form below works without it. */}
+      <div style={{ marginBottom: 32 }}>
+        <button
+          type="button"
+          onClick={() => { window.location.href = stravaAuthorizeUrl('onboarding') }}
+          style={{
+            width: '100%', background: STRAVA_ORANGE, color: '#fff', border: 'none',
+            borderRadius: 'var(--radius)', padding: '12px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          Connect Strava to autofill
+        </button>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+          Optional. Pulls your name, sex, weight, and units from Strava — you fill in age and height. Or just type everything below.
+        </p>
+        {stravaBanner && (
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{stravaBanner}</div>
+        )}
+      </div>
 
       <form onSubmit={handleSubmit}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -430,7 +496,12 @@ function ProfileStep() {
 }
 
 export default function Onboarding() {
-  const [step, setStep] = useState<'welcome' | 'profile'>('welcome')
+  // Returning from the Strava OAuth round-trip lands on /onboarding?strava=…;
+  // skip the welcome explainer and go straight to the profile step so the
+  // prefill effect there fires.
+  const [step, setStep] = useState<'welcome' | 'profile'>(
+    () => (new URLSearchParams(window.location.search).has('strava') ? 'profile' : 'welcome'),
+  )
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', overflowY: 'auto' }}>
