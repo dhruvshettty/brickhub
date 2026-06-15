@@ -44,14 +44,14 @@ function SignalsWeb() {
           <g key={i}>
             <line
               x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-              stroke="#2a2a2a"
+              stroke="#23252a"
               strokeWidth={1.5}
             />
             <text
               x={mx} y={my}
               textAnchor="middle"
               dominantBaseline="middle"
-              fill="#555"
+              fill="#62666d"
               fontSize={9}
               style={{ userSelect: 'none' }}
             >
@@ -67,19 +67,19 @@ function SignalsWeb() {
           <g key={i}>
             <circle
               cx={pos.x} cy={pos.y} r={28}
-              fill="#1a1a1a"
-              stroke={mod.available ? mod.color : '#2a2a2a'}
+              fill="#0f1011"
+              stroke={mod.available ? mod.color : '#23252a'}
               strokeWidth={mod.available ? 2 : 1}
             />
             <foreignObject x={pos.x - 12} y={pos.y - 12} width={24} height={24}>
-              <div style={{ color: mod.available ? mod.color : '#444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ color: mod.available ? mod.color : 'var(--ink-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon size={18} />
               </div>
             </foreignObject>
             <text
               x={pos.x} y={pos.y + 42}
               textAnchor="middle"
-              fill={mod.available ? '#e8e8e8' : '#555'}
+              fill={mod.available ? '#f7f8f8' : '#62666d'}
               fontSize={10}
               style={{ userSelect: 'none' }}
             >
@@ -125,10 +125,10 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
                 opacity: available ? 1 : 0.45,
               }}
             >
-              <Icon size={20} color={available ? color : '#555'} style={{ marginBottom: 8 }} />
+              <Icon size={20} color={available ? color : '#62666d'} style={{ marginBottom: 8 }} />
               <div style={{ fontSize: 11, color: available ? 'var(--text)' : 'var(--text-muted)' }}>{label}</div>
               {!available && (
-                <div style={{ fontSize: 10, color: '#444', marginTop: 4 }}>soon</div>
+                <div style={{ fontSize: 10, color: 'var(--ink-tertiary)', marginTop: 4 }}>soon</div>
               )}
             </div>
           ))}

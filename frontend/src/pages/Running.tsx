@@ -659,7 +659,7 @@ export default function Running() {
                     <div>
                       {isExtra && (
                         <div style={{ fontSize: 13 }}>
-                          <span style={{ fontWeight: 600 }}>{actualLabel(act)}</span>
+                          <span className="mono" style={{ fontWeight: 600 }}>{actualLabel(act)}</span>
                           <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 12 }}>
                             Unplanned run{act.source === 'imported' ? ' · imported from Strava' : ''}
                           </div>
@@ -667,16 +667,16 @@ export default function Running() {
                       )}
                       {day.type !== 'rest' && (
                         <div style={{ fontSize: 13 }}>
-                          <span style={{ fontWeight: 600 }}>{day.distance_km} km</span>
+                          <span className="mono" style={{ fontWeight: 600 }}>{day.distance_km} km</span>
                           {day.pace_zone && (
-                            <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>{day.pace_zone}</span>
+                            <span className="mono" style={{ color: 'var(--text-muted)', marginLeft: 8 }}>{day.pace_zone}</span>
                           )}
                           <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 12 }}>
                             {day.description}
                           </div>
                           {act && (
                             <div style={{ marginTop: 2, fontSize: 12, color: '#22c55e' }}>
-                              Actual: {actualLabel(act)}{act.source === 'imported' ? ' · Strava' : ''}
+                              Actual: <span className="mono">{actualLabel(act)}</span>{act.source === 'imported' ? ' · Strava' : ''}
                             </div>
                           )}
                           {day.rationale && (

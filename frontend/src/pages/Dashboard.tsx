@@ -159,7 +159,7 @@ export default function Dashboard() {
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
+              <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>
                 {data.today_run.distance_km} km
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
@@ -167,7 +167,7 @@ export default function Dashboard() {
               </div>
               {data.today_actual && (
                 <div style={{ marginTop: 8, fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
-                  ✓ Done — {formatActual(data.today_actual)}{data.today_actual.source === 'imported' ? ' · Strava' : ''}
+                  ✓ Done — <span className="mono">{formatActual(data.today_actual)}</span>{data.today_actual.source === 'imported' ? ' · Strava' : ''}
                 </div>
               )}
             </div>
@@ -186,11 +186,11 @@ export default function Dashboard() {
                   Extra run
                 </span>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
+              <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>
                 {data.today_actual.distance_km != null ? `${data.today_actual.distance_km} km` : 'Run logged'}
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                {formatActual(data.today_actual)}{data.today_actual.source === 'imported' ? ' · imported from Strava' : ''}
+                <span className="mono">{formatActual(data.today_actual)}</span>{data.today_actual.source === 'imported' ? ' · imported from Strava' : ''}
               </div>
             </div>
           ) : (
@@ -216,7 +216,7 @@ export default function Dashboard() {
                 <span style={{ textTransform: 'capitalize', color: 'var(--text-muted)', fontSize: 13 }}>
                   {module}
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>
                   {prog.total === 0 ? (
                     <span style={{ color: 'var(--text-muted)' }}>—</span>
                   ) : (
@@ -252,7 +252,7 @@ export default function Dashboard() {
                 }}>
                   {ctx.label}
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 2 }}>
+                <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginBottom: 2 }}>
                   {data.logged_calories_today > 0
                     ? `${Math.round(data.logged_calories_today)} / ${data.today_food.targets.calories}`
                     : data.today_food.targets.calories} kcal
@@ -307,7 +307,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span>{data.signals.total_training_minutes_this_week} min trained this week</span>
+            <span><span className="mono">{data.signals.total_training_minutes_this_week}</span> min trained this week</span>
             {data.signals.missed_sessions > 0 && (
               <span style={{ color: 'var(--orange)' }}>
                 {data.signals.missed_sessions} missed session{data.signals.missed_sessions > 1 ? 's' : ''}

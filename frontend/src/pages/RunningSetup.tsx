@@ -342,7 +342,7 @@ function Step1({
         {DISTANCES.map(d => (
           <div key={d.id} style={tile(targetDistance === d.id)} onClick={() => setTargetDistance(d.id)}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{d.label}</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>{d.typical}</div>
+            <div className="mono" style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>{d.typical}</div>
           </div>
         ))}
       </div>
@@ -651,7 +651,7 @@ function Step3({
           onChange={e => handleRecentRunsChange(parseInt(e.target.value))}
           style={{ width: '100%', accentColor: 'var(--accent)' }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
           <span>0</span><span>30</span>
         </div>
         <p style={{ fontSize: 13, color: 'var(--accent)', marginTop: 8 }}>
@@ -677,7 +677,7 @@ function Step3({
           onChange={e => setCurrentWeeklyKm(parseInt(e.target.value))}
           style={{ width: '100%', accentColor: 'var(--accent)' }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+        <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
           <span>0</span><span>80 km</span>
         </div>
         {currentWeeklyKm > 0 && !kmInconsistent && (
@@ -797,7 +797,7 @@ function Step3({
                   onChange={e => setPriorBaselineKm(parseInt(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--accent)' }}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+                <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
                   <span>0</span><span>120 km</span>
                 </div>
               </div>

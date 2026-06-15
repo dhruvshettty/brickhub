@@ -98,3 +98,12 @@ Read these before making changes — they eliminate the need to read source file
 - `.claude/docs/architectural_patterns.md` — plan caching, coach plan control, audit trail, week navigation, onboarding gate, JSON blob storage, workout log behavior
 - `.claude/docs/training_algorithms.md` — ability classification thresholds, break-return volume formula, fatigue signal thresholds, weekly run suggestion, recalibration logic, plan day JSON schema
 - `.claude/docs/claude_prompts.md` — every Claude call: which model, caching strategy, system prompt structure, plan_change delimiter format, how to add a new call
+
+## Design System
+
+Always read `DESIGN.md` before making any visual or UI decision. All fonts (Geist
+/ Geist Mono), colors, spacing, radius, and aesthetic direction are defined there —
+a dark, near-black dashboard adapted from Linear's design system via getdesign.md.
+Do not deviate without explicit user approval. Flag any code that doesn't match
+DESIGN.md (the live app in `frontend/src/index.css` still predates it — see the
+"Current Code Delta" table in DESIGN.md for the migration path).

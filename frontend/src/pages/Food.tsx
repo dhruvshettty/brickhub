@@ -134,8 +134,8 @@ function MealCard({ meal, slot, date: dateStr, loggedIds, onLog, onUnlog }: {
           <div style={{ fontWeight: 600, fontSize: 15 }}>{meal.name}</div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{meal.calories} kcal</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          <div className="mono" style={{ fontWeight: 600, fontSize: 15 }}>{meal.calories} kcal</div>
+          <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             C{meal.macros.carbs_g}g · P{meal.macros.protein_g}g · F{meal.macros.fat_g}g
           </div>
         </div>
@@ -483,7 +483,7 @@ export default function Food() {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Calories</span>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>
+                  <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>
                     {loggedCalories > 0 ? `${Math.round(loggedCalories)} / ` : ''}{selectedDay.targets.calories} kcal
                   </span>
                 </div>
@@ -510,7 +510,7 @@ export default function Food() {
                   <div key={key} style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>
+                      <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>
                         {logged > 0 ? `${Math.round(logged)}g / ` : ''}{target}g
                       </span>
                     </div>
@@ -536,7 +536,7 @@ export default function Food() {
                 }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Training</div>
                   <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>
-                    {selectedDay.session_type} · {selectedDay.session_distance_km} km
+                    {selectedDay.session_type} · <span className="mono">{selectedDay.session_distance_km} km</span>
                   </div>
                 </div>
               )}
