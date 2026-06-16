@@ -61,6 +61,8 @@ export const disconnectStrava = () =>
   request<{ disconnected: boolean }>('/strava/disconnect', { method: 'POST' })
 export const getStravaOnboardingPrefill = () =>
   request<StravaPrefillResponse>('/strava/onboarding-prefill')
+export const getStravaRunningPrefill = () =>
+  request<StravaRunningPrefillResponse>('/strava/running-prefill')
 // OAuth is a browser redirect, so it must hit the API host directly (not the relative proxy path).
 // `returnTo` is echoed back through Strava so the callback returns to the right page.
 export const stravaAuthorizeUrl = (returnTo: 'onboarding' | 'settings' = 'settings') =>
@@ -431,6 +433,20 @@ export interface StravaProfilePrefill {
 export interface StravaPrefillResponse {
   connected: boolean
   prefill: StravaProfilePrefill
+  error?: string
+}
+
+// Running-onboarding prefill (Step 3) — derived aggregates, user-confirmed.
+export interface StravaRunningPrefill {
+  recent_runs_4_weeks?: number
+  current_weekly_km?: number
+  preferred_days?: string[]   // lowercase day names; only when a clear pattern exists
+  long_run_day?: string
+}
+
+export interface StravaRunningPrefillResponse {
+  connected: boolean
+  prefill: StravaRunningPrefill
   error?: string
 }
 

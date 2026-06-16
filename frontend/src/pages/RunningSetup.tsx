@@ -4,6 +4,8 @@ import {
   classifyRunningAbility,
   getRunningConfig,
   getProfile,
+  getStravaStatus,
+  getStravaRunningPrefill,
   saveRunningConfig,
   ClassifyResult,
   RunningConfig,
@@ -13,9 +15,8 @@ import { Heading } from '../components/Type'
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const GOAL_OPTIONS = [
-  { id: 'finish', label: 'Just finish', desc: 'Complete the distance — time is not the priority.' },
-  { id: 'beat_time', label: 'Beat a target time', desc: 'I have a goal finish time in mind.' },
-  { id: 'fitness', label: 'Build fitness', desc: 'No race planned — just improving my running.' },
+  { id: 'beat_time', label: 'Beat a target time', desc: 'Improve your running and hit a goal time — with or without a race.' },
+  { id: 'race', label: 'Prepare for a race', desc: 'Train for an event — to finish it or build fitness for it.' },
 ]
 
 const VOLUME_OPTIONS = [
@@ -53,12 +54,11 @@ const TERRAINS = [
 ]
 
 const DISTANCES = [
-  { id: '5k', label: '5K', typical: '20–40 min' },
-  { id: '10k', label: '10K', typical: '40–80 min' },
-  { id: '10_mile', label: '10 Mile', typical: '65–110 min' },
-  { id: 'half_marathon', label: 'Half Marathon', typical: '1:30–3:00 hr' },
-  { id: 'marathon', label: 'Marathon', typical: '3:00–6:00 hr' },
-  { id: '50k', label: '50K', typical: '4:00–8:00 hr' },
+  { id: '5k', label: '5K' },
+  { id: '10k', label: '10K' },
+  { id: 'half_marathon', label: 'Half Marathon' },
+  { id: 'marathon', label: 'Marathon' },
+  { id: '50k', label: '50K' },
 ]
 
 const BREAK_REASONS = [
@@ -160,7 +160,12 @@ function computeWeek1Preview(
     : abilityLevel === 'intermediate' ? 25
     : 15
 
-  const longRunKm = Math.round(baseKm * 0.35)
+  // Long run is the single biggest session; the rest split the remainder evenly.
+  // Scaling an even share by 1.4 keeps the long run the longest at ANY run count
+  // (fewer runs → the long run is naturally a larger slice of the week), instead
+  // of a fixed 35% that loses to a lone easy run on a 2-run week.
+  const even = baseKm / selected.length
+  const longRunKm = selected.length === 1 ? Math.round(baseKm) : Math.round(even * 1.4)
   const otherCount = selected.length - 1
   const easyKm = otherCount > 0 ? Math.round((baseKm - longRunKm) / otherCount) : 0
   const easyLabel = effortPreference === 'challenging' ? 'Tempo run' : 'Easy run'
@@ -277,11 +282,25 @@ function Step1({
 
   return (
     <div>
-      <Heading level={2} style={{ marginBottom: 8 }}>What's your training goal?</Heading>
+      <Heading level={2} style={{ marginBottom: 8 }}>What distance do you want to run?</Heading>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
-        This shapes the whole plan — be honest with yourself.
+        Choose the distance you're training for.
       </p>
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
+        {DISTANCES.map(d => (
+          <div key={d.id} style={tile(targetDistance === d.id)} onClick={() => setTargetDistance(d.id)}>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{d.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginBottom: 8 }}>
+        <Heading level={3} style={{ marginBottom: 8 }}>What's your goal for it?</Heading>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
+          This sets what we'll train you toward.
+        </p>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
         {GOAL_OPTIONS.map(g => (
           <div key={g.id} style={tile(trainingGoal === g.id)} onClick={() => setTrainingGoal(g.id)}>
@@ -328,25 +347,6 @@ function Step1({
           </div>
         </div>
       )}
-
-      <div style={{ marginBottom: 8 }}>
-        <Heading level={3} style={{ marginBottom: 8 }}>
-          {trainingGoal === 'fitness' ? 'Target distance' : 'Goal distance'}
-        </Heading>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
-          {trainingGoal === 'fitness'
-            ? 'Choose the distance you want to be able to run comfortably.'
-            : "Choose the race or distance you're training for."}
-        </p>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
-        {DISTANCES.map(d => (
-          <div key={d.id} style={tile(targetDistance === d.id)} onClick={() => setTargetDistance(d.id)}>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>{d.label}</div>
-            <div className="mono" style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>{d.typical}</div>
-          </div>
-        ))}
-      </div>
 
       <div style={{ marginBottom: 28 }}>
         <label style={{ display: 'block', fontSize: 13, marginBottom: 10 }}>
@@ -561,6 +561,7 @@ function Step3({
   priorBaselineKm,
   setPriorBaselineKm,
   abilityLevel,
+  stravaConnected,
   onNext,
   onBack,
 }: {
@@ -590,6 +591,7 @@ function Step3({
   priorBaselineKm: number
   setPriorBaselineKm: (v: number) => void
   abilityLevel: string
+  stravaConnected: boolean
   onNext: () => void
   onBack: () => void
 }) {
@@ -597,6 +599,9 @@ function Step3({
   const [typicalMonth, setTypicalMonth] = useState<boolean | null>(returningFromBreak ? false : null)
   const [adjustKmOpen, setAdjustKmOpen] = useState(false)
   const [userAdjustedKm, setUserAdjustedKm] = useState(0)
+  const [autofilling, setAutofilling] = useState(false)
+  const [autofilled, setAutofilled] = useState(false)
+  const [autofillError, setAutofillError] = useState('')
 
   const toggleDay = (day: string) => {
     if (preferredDays.includes(day)) {
@@ -629,6 +634,27 @@ function Step3({
     }
   }
 
+  const handleStravaAutofill = async () => {
+    setAutofilling(true)
+    setAutofillError('')
+    try {
+      const { connected, prefill, error } = await getStravaRunningPrefill()
+      if (!connected) { setAutofillError('Strava is not connected.'); return }
+      if (error) { setAutofillError("Couldn't reach Strava — try again."); return }
+      if (prefill.recent_runs_4_weeks != null) handleRecentRunsChange(prefill.recent_runs_4_weeks)
+      if (prefill.current_weekly_km != null) setCurrentWeeklyKm(prefill.current_weekly_km)
+      // Days come only when Strava shows a clear pattern; long_run_day is always
+      // within preferred_days (backend guarantee), so set days first.
+      if (prefill.preferred_days?.length) setPreferredDays(prefill.preferred_days)
+      if (prefill.long_run_day) setLongRunDay(prefill.long_run_day)
+      setAutofilled(true)
+    } catch {
+      setAutofillError("Couldn't reach Strava — try again.")
+    } finally {
+      setAutofilling(false)
+    }
+  }
+
   const suggestionReason = recentRuns4Weeks === 0
     ? 'No recent runs — starting fresh'
     : `Based on ${recentRuns4Weeks} runs in the last 4 weeks`
@@ -639,6 +665,57 @@ function Step3({
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
         How have you been training lately, and when do you prefer to run?
       </p>
+
+      {stravaConnected ? (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          justifyContent: 'space-between',
+          background: 'var(--surface)',
+          border: `1px solid ${autofilled && !autofillError ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 10,
+          padding: '14px 16px',
+          marginBottom: 24,
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Autofill from Strava</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              Pull your last 4 weeks of runs to set your load and run-day pattern.
+            </div>
+            {autofillError && (
+              <div style={{ fontSize: 12, color: 'var(--orange)', marginTop: 6 }}>{autofillError}</div>
+            )}
+            {autofilled && !autofillError && (
+              <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 6 }}>
+                Filled from your recent activity — adjust below if needed.
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleStravaAutofill}
+            disabled={autofilling}
+            style={{
+              flexShrink: 0,
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 8,
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: autofilling ? 'default' : 'pointer',
+              opacity: autofilling ? 0.6 : 1,
+            }}
+          >
+            {autofilling ? 'Fetching…' : autofilled ? 'Refresh' : 'Autofill'}
+          </button>
+        </div>
+      ) : (
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
+          Connect Strava in Settings to autofill your recent training load.
+        </p>
+      )}
 
       <div style={{ marginBottom: 28 }}>
         <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
@@ -860,6 +937,11 @@ function Step3({
             </button>
           ))}
         </div>
+        {preferredDays.length > 0 && preferredDays.length < suggestedRunsPerWeek && (
+          <p style={{ fontSize: 12, color: 'var(--orange)', marginTop: 8 }}>
+            You've picked {preferredDays.length} day{preferredDays.length > 1 ? 's' : ''}, but we suggest {suggestedRunsPerWeek} runs/week — add {suggestedRunsPerWeek - preferredDays.length} more to fit them all, or we'll plan {preferredDays.length}.
+          </p>
+        )}
       </div>
 
       {preferredDays.length > 0 && (
@@ -1033,29 +1115,42 @@ function Step4({
   onNext: () => void
   onBack: () => void
 }) {
-  const weeks = raceDate ? weeksUntil(raceDate) : 0
+  const today = new Date().toISOString().split('T')[0]
+  // ISO YYYY-MM-DD strings compare lexicographically, so direct <= is safe.
+  const raceBeforeStart = raceDate !== '' && planStartDate !== '' && raceDate <= planStartDate
+
+  // Training window = plan start → race (what actually gets planned), not today → race.
+  // Below one week there isn't even a single weekly block to build, so it's blocked.
+  const MIN_PLAN_DAYS = 7
+  const windowDays = raceDate && planStartDate && !raceBeforeStart
+    ? Math.round((new Date(raceDate).getTime() - new Date(planStartDate).getTime()) / 86400000)
+    : 0
+  const windowWeeks = Math.round(windowDays / 7)
+  const windowTooShort = raceDate !== '' && planStartDate !== '' && !raceBeforeStart && windowDays < MIN_PLAN_DAYS
+
   let raceWarning = ''
-  if (raceDate) {
-    if (weeks < 4) raceWarning = "That's very soon — we'll generate a race-prep plan."
-    else if (weeks > 52) raceWarning = "That's over a year away. We'll build your base first and recalibrate closer to race day."
-    else raceWarning = `That's ${weeks} weeks — enough time for a solid build.`
+  if (raceDate && !raceBeforeStart && !windowTooShort) {
+    if (windowWeeks < 4) raceWarning = "That's a short window — we'll build a focused race-prep and taper plan."
+    else if (windowWeeks > 52) raceWarning = "That's over a year away. We'll build your base first and recalibrate closer to race day."
+    else raceWarning = `That's ${windowWeeks} weeks — enough time for a solid build.`
   }
 
-  // beat_time always requires a race date
-  const canProceed = trainingGoal === 'beat_time'
+  // "Prepare for a race" always requires a race date; "Beat a target time" treats it as optional
+  const canProceed = (trainingGoal === 'race'
     ? raceDate !== ''
-    : hasRace === false || (hasRace === true && raceDate !== '')
+    : hasRace === false || (hasRace === true && raceDate !== ''))
+    && !raceBeforeStart && !windowTooShort
 
   return (
     <div>
       <Heading level={2} style={{ marginBottom: 8 }}>Plan timeline</Heading>
       <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
-        {trainingGoal === 'beat_time'
-          ? "When is your target race? We'll build a time-goal plan around it."
+        {trainingGoal === 'race'
+          ? "When is your race? We'll build the plan around it."
           : 'Are you training for a specific race?'}
       </p>
 
-      {trainingGoal !== 'beat_time' && (
+      {trainingGoal !== 'race' && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
           <div style={tile(hasRace === true)} onClick={() => setHasRace(true)}>
             <div style={{ fontWeight: 600 }}>Yes, I have a race</div>
@@ -1068,26 +1163,36 @@ function Step4({
         </div>
       )}
 
-      {(hasRace === true || trainingGoal === 'beat_time') && (
+      {(hasRace === true || trainingGoal === 'race') && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
-              Race date {trainingGoal === 'beat_time' && <span style={{ color: 'var(--accent)' }}>*</span>}
+              Race date {trainingGoal === 'race' && <span style={{ color: 'var(--accent)' }}>*</span>}
             </label>
             <input
               type="date"
               value={raceDate}
-              min={new Date().toISOString().split('T')[0]}
+              min={planStartDate || today}
               onChange={e => setRaceDate(e.target.value)}
               style={{
                 padding: '8px 12px',
                 background: 'var(--surface)',
-                border: '1px solid var(--border)',
+                border: `1px solid ${raceBeforeStart || windowTooShort ? 'var(--orange)' : 'var(--border)'}`,
                 borderRadius: 6,
                 color: 'var(--text)',
                 fontSize: 14,
               }}
             />
+            {raceBeforeStart && (
+              <p style={{ fontSize: 13, color: 'var(--orange)', marginTop: 8 }}>
+                Race date must be after the plan start date.
+              </p>
+            )}
+            {windowTooShort && (
+              <p style={{ fontSize: 13, color: 'var(--orange)', marginTop: 8 }}>
+                Too little time between the start and the race to build a plan — pick a later race or an earlier start.
+              </p>
+            )}
             {raceWarning && (
               <p style={{ fontSize: 13, color: 'var(--accent)', marginTop: 8 }}>{raceWarning}</p>
             )}
@@ -1115,7 +1220,7 @@ function Step4({
         </div>
       )}
 
-      {hasRace === false && trainingGoal !== 'beat_time' && (
+      {hasRace === false && trainingGoal !== 'race' && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
@@ -1195,9 +1300,11 @@ function Step5({
   const distLabel = DISTANCES.find(d => d.id === config.targetDistance)?.label || config.targetDistance
   const goalLabel = GOAL_OPTIONS.find(g => g.id === config.trainingGoal)?.label || config.trainingGoal
   const days = config.preferredDays.map(d => DAY_LABELS[d]).join(', ')
+  // Can't place more runs than there are preferred days — show what's actually planned.
+  const runsPerWeek = Math.min(config.suggestedRunsPerWeek, config.preferredDays.length)
   const weeks = config.raceDate ? weeksUntil(config.raceDate) : config.planWeeks
 
-  const hasRaceDate = config.trainingGoal !== 'fitness' && (config.hasRace || config.trainingGoal === 'beat_time')
+  const hasRaceDate = config.hasRace === true || config.trainingGoal === 'race'
 
   const rows: [string, string][] = [
     ['Goal', goalLabel],
@@ -1206,7 +1313,7 @@ function Step5({
       : []),
     ['Distance', distLabel],
     ['Level', `${capitalise(config.abilityLevel)}${config.aerobicBasePriority ? ' (aerobic base priority)' : ''}`],
-    ['Runs/week', `${config.suggestedRunsPerWeek}  (${days})`],
+    ['Runs/week', `${runsPerWeek}  (${days})`],
     ['Long run', DAY_LABELS[config.longRunDay] || config.longRunDay],
     ['Starts', new Date(config.planStartDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })],
     hasRaceDate
@@ -1368,7 +1475,7 @@ export default function RunningSetup() {
   const [breakDuration, setBreakDuration] = useState('')
   const [priorBaselineKm, setPriorBaselineKm] = useState(0)
 
-  // Step 5 — Timeline (skipped for fitness goal)
+  // Step 5 — Timeline
   const [hasRace, setHasRace] = useState<boolean | null>(null)
   const [raceDate, setRaceDate] = useState('')
   const [planWeeks, setPlanWeeks] = useState(12)
@@ -1376,10 +1483,10 @@ export default function RunningSetup() {
 
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [stravaConnected, setStravaConnected] = useState(false)
 
-  const totalSteps = trainingGoal === 'fitness' ? 4 : 5
-  // step 5 is the 4th position in the fitness flow (step 4 is skipped)
-  const displayStep = step === 5 && trainingGoal === 'fitness' ? 4 : step
+  const totalSteps = 5
+  const displayStep = step
 
   // Pre-fill from existing config and profile
   useEffect(() => {
@@ -1415,6 +1522,12 @@ export default function RunningSetup() {
       }
       setLoading(false)
     }).catch(() => setLoading(false))
+  }, [])
+
+  // Strava connection gates the Step-3 "Autofill from Strava" control. Fetched
+  // separately so a status failure never blocks the config/profile load.
+  useEffect(() => {
+    getStravaStatus().then(s => setStravaConnected(s.connected)).catch(() => {})
   }, [])
 
   // Auto-classify when time or effort changes (step 3)
@@ -1465,19 +1578,14 @@ export default function RunningSetup() {
   }
 
   const handleStep3Next = () => {
-    // Skip timeline step for fitness goal
-    if (trainingGoal === 'fitness') {
-      setStep(5)
-    } else {
-      setStep(4)
-    }
+    setStep(4)
   }
 
   const handleConfirm = async (regenerate: boolean) => {
     setSaving(true)
     try {
-      const effectiveRaceDate = (hasRace || trainingGoal === 'beat_time') ? raceDate : null
-      const effectivePlanWeeks = (hasRace || trainingGoal === 'beat_time') ? null : planWeeks
+      const effectiveRaceDate = (hasRace || trainingGoal === 'race') ? raceDate : null
+      const effectivePlanWeeks = (hasRace || trainingGoal === 'race') ? null : planWeeks
 
       await saveRunningConfig({
         target_distance: targetDistance,
@@ -1488,7 +1596,8 @@ export default function RunningSetup() {
         aerobic_base_priority: aerobicBasePriority,
         recent_runs_4_weeks: recentRuns4Weeks,
         current_weekly_km: currentWeeklyKm || null,
-        suggested_runs_per_week: suggestedRunsPerWeek,
+        // Can't run more days than were picked — cap so plan generation matches the preview.
+        suggested_runs_per_week: Math.min(suggestedRunsPerWeek, preferredDays.length),
         preferred_days: preferredDays,
         long_run_day: longRunDay,
         plan_start_date: planStartDate,
@@ -1595,11 +1704,12 @@ export default function RunningSetup() {
           priorBaselineKm={priorBaselineKm}
           setPriorBaselineKm={setPriorBaselineKm}
           abilityLevel={abilityLevel}
+          stravaConnected={stravaConnected}
           onNext={handleStep3Next}
           onBack={() => setStep(2)}
         />
       )}
-      {step === 4 && trainingGoal !== 'fitness' && (
+      {step === 4 && (
         <Step4
           trainingGoal={trainingGoal}
           hasRace={hasRace}
@@ -1638,7 +1748,7 @@ export default function RunningSetup() {
             currentWeeklyKm,
             abilityLevelForPreview: abilityLevel,
           }}
-          onEdit={() => setStep(trainingGoal === 'fitness' ? 3 : 4)}
+          onEdit={() => setStep(4)}
           onConfirm={handleConfirm}
           isEditing={isEditing}
           saving={saving}

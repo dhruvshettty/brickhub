@@ -2,7 +2,7 @@
 
 Personal triathlon training dashboard. Five modules (running, biking, swimming, gym, food) share cross-module intelligence: gym soreness affects swim plan, long ride tomorrow affects dinner suggestion. Claude generates all plans and coaches in real time.
 
-Single-user, self-hosted. M1 (running) is complete. M2 (food) is in progress. M3 (biking) is next.
+Single-user, self-hosted. Milestone status (which modules are done, in progress, or next) lives in `.claude/docs/roadmap.md` — the single source of truth. Don't track it here.
 
 ## Tech Stack
 

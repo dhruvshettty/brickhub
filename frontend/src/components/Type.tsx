@@ -57,6 +57,38 @@ export function Text({
   )
 }
 
+// Small uppercase status pill (e.g. a module's stage: Alpha / Beta). `color`
+// takes any CSS color, including a var like var(--module-food).
+export function Badge({
+  children,
+  color = 'var(--accent)',
+  style,
+}: {
+  children: ReactNode
+  color?: string
+  style?: CSSProperties
+}) {
+  return (
+    <span style={{
+      display: 'inline-block',
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+      padding: '1px 6px',
+      borderRadius: 4,
+      color,
+      border: `1px solid ${color}`,
+      background: 'transparent',
+      lineHeight: 1.6,
+      verticalAlign: 'middle',
+      ...style,
+    }}>
+      {children}
+    </span>
+  )
+}
+
 // Big monospace metric number (paces, distances, stat values).
 export function Metric({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (

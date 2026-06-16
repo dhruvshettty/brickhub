@@ -10,6 +10,7 @@ import FoodSetup from './pages/FoodSetup'
 import ComingSoon from './pages/ComingSoon'
 import Onboarding from './pages/Onboarding'
 import { checkProfileExists, syncStrava } from './lib/api'
+import { Badge } from './components/Type'
 
 const navItems = [
   { to: '/', icon: Home, label: 'Dashboard', end: true },
@@ -85,6 +86,7 @@ export default function App() {
             >
               <Icon size={16} />
               {label}
+              {to === '/food' && <Badge color="var(--module-food)" style={{ marginLeft: 'auto' }}>Alpha</Badge>}
             </NavLink>
           ))}
         </div>

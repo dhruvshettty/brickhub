@@ -7,7 +7,7 @@ to /callback with a code, we exchange it for a token stored on the profile.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -122,6 +122,34 @@ def strava_onboarding_prefill(db: Session = Depends(get_db)):
     except httpx.HTTPError:
         return {"connected": True, "prefill": {}, "error": "fetch_failed"}
     return {"connected": True, "prefill": strava_onboarding.prefill_from_athlete(athlete)}
+
+
+@router.get("/running-prefill")
+def strava_running_prefill(db: Session = Depends(get_db)):
+    """Suggested training-load values (runs/4wk + weekly km) from recent Strava runs.
+
+    Read-only: never persists. The running onboarding (Step 3) fills these as
+    editable suggestions; the user confirms via PUT /running/config. Degrades to
+    an empty prefill (never a 500) so manual entry always stays available.
+    Aggregates only — raw activities never cross this boundary.
+    """
+    profile = _get_or_create_profile(db)
+    if not profile.strava_access_token:
+        return {"connected": False, "prefill": {}}
+    adapter = StravaAdapter()
+    after = datetime.utcnow() - timedelta(days=strava_sync.FIRST_SYNC_LOOKBACK_DAYS)
+    try:
+        access = strava_sync._ensure_fresh_token(db, profile, adapter)
+        activities = adapter.fetch_activities(access, after)
+    except StravaConfigError as e:
+        raise HTTPException(400, str(e))
+    except httpx.HTTPError:
+        return {"connected": True, "prefill": {}, "error": "fetch_failed"}
+    weeks = strava_sync.FIRST_SYNC_LOOKBACK_DAYS // 7
+    return {
+        "connected": True,
+        "prefill": strava_onboarding.running_prefill_from_activities(activities, weeks),
+    }
 
 
 @router.post("/sync")

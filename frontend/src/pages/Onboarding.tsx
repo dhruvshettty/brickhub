@@ -5,16 +5,16 @@ import {
   getStravaOnboardingPrefill, stravaAuthorizeUrl, updateProfile, StravaProfilePrefill,
 } from '../lib/api'
 import { MODULE_COLOR } from '../lib/tokens'
-import { Heading } from '../components/Type'
+import { Heading, Badge } from '../components/Type'
 
 const STRAVA_ORANGE = '#fc4c02'
 
 const MODULES = [
-  { icon: Activity, label: 'Running', color: MODULE_COLOR.running, available: true },
-  { icon: Bike, label: 'Biking', color: MODULE_COLOR.biking, available: false },
-  { icon: Fish, label: 'Swimming', color: MODULE_COLOR.swimming, available: false },
-  { icon: Dumbbell, label: 'Gym', color: MODULE_COLOR.gym, available: false },
-  { icon: Salad, label: 'Food', color: MODULE_COLOR.food, available: true },
+  { icon: Activity, label: 'Running', color: MODULE_COLOR.running, available: true, alpha: false },
+  { icon: Bike, label: 'Biking', color: MODULE_COLOR.biking, available: false, alpha: false },
+  { icon: Fish, label: 'Swimming', color: MODULE_COLOR.swimming, available: false, alpha: false },
+  { icon: Dumbbell, label: 'Gym', color: MODULE_COLOR.gym, available: false, alpha: false },
+  { icon: Salad, label: 'Food', color: MODULE_COLOR.food, available: true, alpha: true },
 ]
 
 // Pentagon positions (cx, cy) for 5 nodes, top-center first, clockwise
@@ -119,7 +119,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
           Running and Food are available now, with the rest coming soon.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-          {MODULES.map(({ icon: Icon, label, color, available }) => (
+          {MODULES.map(({ icon: Icon, label, color, available, alpha }) => (
             <div
               key={label}
               style={{
@@ -135,6 +135,9 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
               <div style={{ fontSize: 11, color: available ? 'var(--text)' : 'var(--text-muted)' }}>{label}</div>
               {!available && (
                 <div style={{ fontSize: 10, color: 'var(--ink-tertiary)', marginTop: 4 }}>soon</div>
+              )}
+              {available && alpha && (
+                <Badge color={color} style={{ marginTop: 6 }}>Alpha</Badge>
               )}
             </div>
           ))}

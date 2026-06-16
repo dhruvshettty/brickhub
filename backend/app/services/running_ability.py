@@ -3,7 +3,6 @@
 DISTANCE_KM: dict[str, float] = {
     "5k": 5.0,
     "10k": 10.0,
-    "10_mile": 16.09,
     "half_marathon": 21.0975,
     "marathon": 42.195,
     "50k": 50.0,
@@ -13,7 +12,6 @@ DISTANCE_KM: dict[str, float] = {
 PACE_THRESHOLDS: dict[str, dict[str, int]] = {
     "5k":            {"elite": 210, "advanced": 255, "intermediate": 330},
     "10k":           {"elite": 222, "advanced": 270, "intermediate": 348},
-    "10_mile":       {"elite": 234, "advanced": 285, "intermediate": 366},
     "half_marathon": {"elite": 240, "advanced": 294, "intermediate": 378},
     "marathon":      {"elite": 258, "advanced": 318, "intermediate": 408},
     "50k":           {"elite": 300, "advanced": 372, "intermediate": 480},

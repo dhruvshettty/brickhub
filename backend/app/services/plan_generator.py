@@ -86,9 +86,8 @@ def _running_config_context(config: dict, today: date) -> str:
 
     training_goal = config.get("training_goal")
     goal_map = {
-        "finish": "complete the race (no time pressure)",
-        "beat_time": "beat a target finish time",
-        "fitness": "build base fitness (no race goal)",
+        "beat_time": "beat a target finish time (running improvement plan, race optional)",
+        "race": "prepare for a race — finish it or build fitness for it",
     }
     training_goal_line = f"Training goal: {goal_map.get(training_goal, training_goal)}" if training_goal else None
 

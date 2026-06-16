@@ -238,6 +238,55 @@ class TestOnboardingPrefill:
         assert diff["weight_kg"] == {"current": None, "strava": 70.0}
 
 
+class TestRunningPrefill:
+    """Step-3 load prefill: derived run count + weekly km, aggregates only."""
+
+    def test_counts_runs_and_averages_km(self):
+        acts = [act(i, date(2026, 6, 1), dist=10.0) for i in range(8)]  # 2026-06-01 is a Monday
+        p = strava_onboarding.running_prefill_from_activities(acts, weeks=4)
+        assert p["recent_runs_4_weeks"] == 8
+        assert p["current_weekly_km"] == 20  # 80km / 4
+
+    def test_preferred_days_and_long_run(self):
+        acts = (
+            [act(f"m{i}", d, dist=8.0) for i, d in enumerate([date(2026, 6, 1), date(2026, 6, 8)])]
+            + [act(f"w{i}", d, dist=8.0) for i, d in enumerate([date(2026, 6, 3), date(2026, 6, 10)])]
+            + [act(f"s{i}", d, dist=20.0) for i, d in enumerate([date(2026, 6, 6), date(2026, 6, 13), date(2026, 6, 20)])]
+        )
+        p = strava_onboarding.running_prefill_from_activities(acts, weeks=4)
+        assert p["preferred_days"] == ["monday", "wednesday", "saturday"]
+        assert p["long_run_day"] == "saturday"  # longest avg distance
+
+    def test_irregular_history_no_day_pattern(self):
+        # one run each on four distinct weekdays — nothing clears the half-the-weeks bar
+        acts = [act(i, d, dist=8.0) for i, d in enumerate(
+            [date(2026, 6, 1), date(2026, 6, 2), date(2026, 6, 3), date(2026, 6, 4)])]
+        p = strava_onboarding.running_prefill_from_activities(acts, weeks=4)
+        assert "preferred_days" not in p and "long_run_day" not in p
+
+    def test_ignores_non_runs(self):
+        acts = [act(1, date(2026, 6, 1)), act(2, date(2026, 6, 2), type="Ride", dist=40.0)]
+        p = strava_onboarding.running_prefill_from_activities(acts, weeks=4)
+        assert p["recent_runs_4_weeks"] == 1
+        assert p["current_weekly_km"] == 2  # only the 8km run / 4
+
+    def test_no_runs_returns_zeros(self):
+        p = strava_onboarding.running_prefill_from_activities([], weeks=4)
+        assert p == {"recent_runs_4_weeks": 0, "current_weekly_km": 0}
+
+    def test_missing_distance_skipped_in_sum(self):
+        acts = [act(1, date(2026, 6, 1), dist=None), act(2, date(2026, 6, 2), dist=12.0)]
+        p = strava_onboarding.running_prefill_from_activities(acts, weeks=4)
+        assert p["recent_runs_4_weeks"] == 2
+        assert p["current_weekly_km"] == 3  # 12 / 4
+
+    def test_clamped_to_slider_bounds(self):
+        acts = [act(i, date(2026, 6, 1), dist=100.0) for i in range(40)]
+        p = strava_onboarding.running_prefill_from_activities(acts, weeks=4)
+        assert p["recent_runs_4_weeks"] == 30   # capped at slider max
+        assert p["current_weekly_km"] == 80     # capped at slider max
+
+
 class TestReturnPathWhitelist:
     """Open-redirect guard: callback only honors known frontend paths."""
 

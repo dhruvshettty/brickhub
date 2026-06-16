@@ -90,7 +90,12 @@ Tasks:
 
 ---
 
-## M2 — Food 🔲 IN PROGRESS
+## M2 — Food 🔬 ALPHA (built, not actively developed)
+
+Core is built and usable end-to-end (onboarding, plan generation, logging, dashboard widget)
+but development is paused — surfaced to the user as an "Alpha" badge on the onboarding module
+card, the Food page header, and the sidebar nav item (`Badge` primitive, `var(--module-food)`).
+Stretch/future items below are deferred until work resumes.
 
 Nutrition adapts to training load — what you eat tonight depends on what you're doing tomorrow. The meal plan is generated from the training calendar: each day's food is shaped by the session type AND the window around it (carb-load the day before a long run, recovery focus the day after).
 
@@ -294,16 +299,25 @@ Tasks:
 - [ ] Deferred: frontend / E2E tests (no FE test runner). Live OAuth round-trip still needs a
       manual check with real `STRAVA_CLIENT_*` + a one-time reconnect for the new scope.
 
-### Phase 4 — Strava running-onboarding prefill (history) 🔲 Future (deferred)
+### Phase 4 — Strava running-onboarding prefill (history) 🔶 IN PROGRESS
 
 Use Strava history to prefill the running-onboarding fields that feed **plan generation**, so the
-user confirms instead of self-reporting. Deferred — this is plan-generation input, separate from
-the M0 profile prefill (Phase 3). Same AI-clause boundary: derived aggregates the user confirms,
-never raw activity JSON to a prompt.
+user confirms instead of self-reporting. This is plan-generation input, separate from
+the M0 profile prefill (Phase 3).
 
-- [ ] Adapter `fetch_stats()` → `recent_run_totals` (count + distance, last 4 weeks) → prefill
-      `recent_runs_4_weeks`, `current_weekly_km`.
-- [ ] Run-day pattern from `fetch_activities` → suggest `preferred_days` / `long_run_day`.
+- [x] **Training-load prefill (Step 3):** `running_prefill_from_activities()` aggregates the last
+      4 weeks of runs (count + distance) from the existing tested `fetch_activities` (no new adapter
+      method) → `recent_runs_4_weeks`, `current_weekly_km`, clamped to slider bounds. Endpoint
+      `GET /strava/running-prefill` (read-only, degrades to empty prefill, never 500). Frontend:
+      "Autofill from Strava" banner in `RunningSetup` Step 3, gated on `stravaConnected` (no
+      mid-wizard OAuth — would wipe form state; muted "connect in Settings" hint otherwise).
+      Suggest-and-confirm: fills editable sliders, user adjusts + saves. 5 backend tests.
+- [x] **Run-day pattern (Step 3):** `_run_day_pattern()` (in `strava_onboarding.py`) buckets the
+      window's runs by weekday → `preferred_days` = weekdays with a run in ≥ half the weeks (filters
+      one-offs); `long_run_day` = the preferred weekday with the greatest avg distance (always within
+      `preferred_days`). Irregular/sparse history → no day keys (manual fallback). Folded into the
+      same `GET /strava/running-prefill` payload + the Step-3 "Autofill from Strava" handler. Day-name
+      scalars only (AI-clause safe). 2 backend tests (pattern + irregular).
 - [ ] Ability auto-classify (option undecided): (A) skip — keep manual race-time entry; (B)
       `best_efforts` per standard distance via per-activity detail fetch — accurate but N calls +
       rate-limit/latency + race-vs-training ambiguity; (C) avg recent pace — cheap but

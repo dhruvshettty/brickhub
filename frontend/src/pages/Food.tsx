@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Settings2 } from 'lucide-react'
+import { Settings2, Lock } from 'lucide-react'
 import { WORKOUT_TYPE_COLOR, NUTRITION_CONTEXT_COLOR, MACRO_COLOR } from '../lib/tokens'
 import {
   getFoodConfig,
@@ -13,7 +13,7 @@ import {
   MealLogEntry,
 } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
-import { Heading } from '../components/Type'
+import { Heading, Badge } from '../components/Type'
 
 const PLAN_MESSAGES = [
   'Analysing your training schedule…',
@@ -203,6 +203,50 @@ function MealCard({ meal, slot, date: dateStr, loggedIds, onLog, onUnlog }: {
   )
 }
 
+// Cross-module gate: food plans are built from the training calendar, so running
+// must be configured first. Shown in-page instead of a silent redirect.
+function RunningRequiredGate({ onSetup }: { onSetup: () => void }) {
+  return (
+    <div style={{ maxWidth: 480 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <Heading level={1}>Nutrition</Heading>
+        <Badge color="var(--module-food)">Alpha</Badge>
+      </div>
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: 24,
+        marginTop: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <Lock size={18} color="var(--text-muted)" />
+          <div style={{ fontWeight: 600, fontSize: 16 }}>Set up running first</div>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+          Your meals are planned around your training — carb-loading the day before a long run,
+          recovery focus the day after. We need your running plan before we can build a food plan.
+        </p>
+        <button
+          onClick={onSetup}
+          style={{
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius)',
+            padding: '10px 20px',
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Set up running →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Food() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -210,13 +254,16 @@ export default function Food() {
   const [planData, setPlanData] = useState<FoodPlanResponse | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10))
   const [error, setError] = useState<string | null>(null)
+  const [needsRunning, setNeedsRunning] = useState(false)
 
   useEffect(() => {
     async function load() {
       try {
         const configRes = await getFoodConfig()
         if (!configRes.running_onboarded) {
-          navigate('/running')
+          // Food planning depends on the training calendar — show a gate, don't
+          // abruptly bounce to the running page.
+          setNeedsRunning(true)
           return
         }
         if (!configRes.onboarded) {
@@ -271,6 +318,7 @@ export default function Food() {
     }
   }
 
+  if (needsRunning) return <RunningRequiredGate onSetup={() => navigate('/running/setup')} />
   if (loading && !generating) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
   if (generating || (planData && !planData.plan && !planData.ai_unavailable && !planData.message)) {
     return <PlanGeneratingScreen />
@@ -280,7 +328,10 @@ export default function Food() {
   if (!planData?.plan) {
     return (
       <div style={{ maxWidth: 480 }}>
-        <Heading level={1} style={{ marginBottom: 8 }}>Nutrition</Heading>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <Heading level={1}>Nutrition</Heading>
+          <Badge color="var(--module-food)">Alpha</Badge>
+        </div>
         {planData?.ai_unavailable ? (
           <div style={{
             background: 'rgba(239,68,68,0.08)',
@@ -333,7 +384,10 @@ export default function Food() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <Heading level={1} style={{ marginBottom: 4 }}>Nutrition</Heading>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <Heading level={1}>Nutrition</Heading>
+            <Badge color="var(--module-food)">Alpha</Badge>
+          </div>
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
             Week of {new Date(plan.week_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             {plan.race_week && (

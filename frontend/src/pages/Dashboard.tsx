@@ -124,9 +124,9 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-        {/* Today's run */}
+        {/* Today's workout — scheduled or completed */}
         <Card>
-          <CardTitle>Today's Run</CardTitle>
+          <CardTitle>Today's Workout</CardTitle>
           {data.today_run ? (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
