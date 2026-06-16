@@ -19,7 +19,7 @@ from app.models.plan import WeeklyPlan
 from app.models.profile import Profile
 from app.models.workout import ModuleType, WorkoutLog, WorkoutSource
 from app.api.v1 import strava as strava_api
-from app.services import strava_onboarding, strava_sync
+from app.services import cross_module, strava_onboarding, strava_sync
 from app.services.activity_source import Activity, ActivitySource, AthleteProfile, OAuthTokens
 from app.services.strava_adapter import StravaAdapter
 
@@ -144,13 +144,15 @@ class TestAdapterNormalization:
         a = StravaAdapter._activity_from({
             "id": 123, "type": "Run", "sport_type": "Run",
             "start_date_local": "2026-06-10T07:30:00Z", "start_date": "2026-06-10T05:30:00Z",
-            "moving_time": 2400, "distance": 8000, "average_heartrate": 152.4, "name": "Morning Run",
+            "moving_time": 2400, "distance": 8000, "average_heartrate": 152.4,
+            "suffer_score": 88.6, "name": "Morning Run",
         })
         assert a.external_id == "123"
         assert a.is_run
         assert a.duration_minutes == 40.0
         assert a.distance_km == 8.0
         assert a.avg_hr == 152
+        assert a.relative_effort == 89
         assert a.start.date().isoformat() == "2026-06-10"
 
     def test_missing_optional_fields(self):
@@ -158,6 +160,7 @@ class TestAdapterNormalization:
             "id": 9, "type": "Run", "start_date": "2026-06-10T05:30:00Z",
         })
         assert a.duration_minutes is None and a.distance_km is None and a.avg_hr is None
+        assert a.relative_effort is None  # no HR → no Relative Effort
 
     def test_prefers_local_start(self):
         a = StravaAdapter._activity_from({
@@ -285,6 +288,44 @@ class TestRunningPrefill:
         p = strava_onboarding.running_prefill_from_activities(acts, weeks=4)
         assert p["recent_runs_4_weeks"] == 30   # capped at slider max
         assert p["current_weekly_km"] == 80     # capped at slider max
+
+
+class TestTrainingLoadFatigue:
+    """Weekly fatigue prefers Strava Relative Effort, estimates HR-less runs from minutes."""
+
+    TODAY = date(2026, 6, 16)  # Tuesday — same week as Monday 2026-06-15
+
+    def _run(self, db, *, minutes, re=None):
+        when = datetime.combine(self.TODAY, datetime.min.time()).replace(hour=7)
+        db.add(WorkoutLog(
+            module=ModuleType.running, planned_at=when, completed_at=when,
+            duration_minutes=minutes, relative_effort=re, source=WorkoutSource.imported,
+        ))
+        db.commit()
+
+    def test_relative_effort_drives_fatigue(self, db):
+        p = seed_profile(db)
+        self._run(db, minutes=30, re=200)
+        self._run(db, minutes=30, re=200)  # minutes-only would be 60 → "low"
+        s = cross_module.get_signals(db, p, self.TODAY)
+        assert s["training_load"] == 400 and s["fatigue_level"] == "high"
+        assert s["training_load_source"] == "relative_effort"
+
+    def test_hybrid_estimates_runs_without_hr(self, db):
+        p = seed_profile(db)
+        self._run(db, minutes=40, re=200)
+        self._run(db, minutes=130)          # no RE → counts as 130
+        s = cross_module.get_signals(db, p, self.TODAY)
+        assert s["training_load"] == 330 and s["fatigue_level"] == "high"
+        assert s["training_load_source"] == "mixed"
+
+    def test_falls_back_to_minutes_without_strava(self, db):
+        p = seed_profile(db)
+        self._run(db, minutes=120)
+        self._run(db, minutes=80)
+        s = cross_module.get_signals(db, p, self.TODAY)
+        assert s["training_load"] == 200 and s["fatigue_level"] == "moderate"
+        assert s["training_load_source"] == "minutes"
 
 
 class TestReturnPathWhitelist:

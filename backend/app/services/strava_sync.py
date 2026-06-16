@@ -85,6 +85,7 @@ def import_activity(db: Session, activity: Activity, planned_date: str) -> Worko
     log.duration_minutes = activity.duration_minutes
     log.distance_km = activity.distance_km
     log.avg_hr = activity.avg_hr
+    log.relative_effort = activity.relative_effort
     log.source = WorkoutSource.imported
     log.external_id = activity.external_id
     return log
@@ -101,6 +102,7 @@ def _activity_summary(a: Activity) -> dict:
         "duration_minutes": a.duration_minutes,
         "distance_km": a.distance_km,
         "avg_hr": a.avg_hr,
+        "relative_effort": a.relative_effort,
         "name": a.name,
     }
 

@@ -155,6 +155,8 @@ class StravaAdapter(ActivitySource):
         moving = a.get("moving_time")
         dist = a.get("distance")
         hr = a.get("average_heartrate")
+        # Relative Effort. Strava only returns it for HR-recorded activities.
+        re = a.get("suffer_score")
         return Activity(
             external_id=str(a["id"]),
             type=a.get("sport_type") or a.get("type") or "",
@@ -162,5 +164,6 @@ class StravaAdapter(ActivitySource):
             duration_minutes=round(moving / 60.0, 1) if moving else None,
             distance_km=round(dist / 1000.0, 2) if dist else None,
             avg_hr=round(hr) if hr else None,
+            relative_effort=round(re) if re else None,
             name=a.get("name"),
         )

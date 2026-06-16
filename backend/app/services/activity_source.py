@@ -29,6 +29,7 @@ class Activity:
     duration_minutes: float | None
     distance_km: float | None
     avg_hr: int | None
+    relative_effort: int | None = None  # Strava suffer_score; null without HR data
     name: str | None = None
 
     @property

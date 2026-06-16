@@ -257,6 +257,16 @@ complexity, not the product; real data just feeds it truth instead of guesses.
 - [ ] Polish (deferred): "Imported from Strava" badge on the Running page day cards — imports show
       in the Settings sync summary today, but day_logs would need a `source` field to badge per-day
 
+### Relative Effort → training status ✅ Done
+- [x] Dashboard "Training Status" fatigue now uses Strava **Relative Effort** (`suffer_score`) as the
+      source of truth when connected, falling back to the duration-based bucket otherwise. Captured in
+      the adapter (`_activity_from`), persisted on `WorkoutLog.relative_effort` (migration 011) by sync,
+      and aggregated in `cross_module.get_signals` as a weekly `training_load` (low/mod/high at the same
+      300/150 thresholds). **Hybrid:** runs with HR use RE; HR-less runs fall back to a ~1-point/minute
+      estimate so the week isn't undercounted. `training_load_source` (relative_effort / mixed / minutes)
+      surfaced on the dashboard card. AI-clause: only the derived fatigue bucket reaches Claude, never raw
+      `suffer_score`. Tests: adapter normalization + 3 hybrid-fatigue cases.
+
 ### Phase 2 — Recalibration off actuals (deltas)
 - [ ] Compute derived per-session deltas: actual vs prescribed pace/duration/distance; weekly
       actual volume vs planned

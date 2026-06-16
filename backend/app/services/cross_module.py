@@ -49,8 +49,23 @@ def get_signals(db: Session, profile: Profile, today: date) -> dict:
     yesterday_modules = {w.module for w in yesterday_logs}
     brick_yesterday = ModuleType.biking in yesterday_modules and ModuleType.running in yesterday_modules
 
-    # Training load: total minutes completed this week
+    # Training load = weekly effort score. Prefer Strava Relative Effort (HR-based,
+    # a far better fatigue proxy than wall-clock minutes); for runs without HR (no
+    # RE) fall back to a ~1-point-per-minute estimate so the week isn't undercounted.
+    # Same low/moderate/high thresholds the minutes model used — a no-HR week behaves
+    # exactly as before.
     total_minutes = sum(w.duration_minutes or 0 for w in completed)
+    training_load = sum(
+        w.relative_effort if w.relative_effort is not None else (w.duration_minutes or 0)
+        for w in completed
+    )
+    re_runs = [w for w in completed if w.relative_effort is not None]
+    if not re_runs:
+        load_source = "minutes"
+    elif len(re_runs) == len(completed):
+        load_source = "relative_effort"
+    else:
+        load_source = "mixed"
 
     # Race proximity — read from module configs
     race_proximity = None
@@ -68,13 +83,15 @@ def get_signals(db: Session, profile: Profile, today: date) -> dict:
             race_proximity = f"{days_to_race}d"
 
     fatigue_level = "low"
-    if total_minutes > 300:
+    if training_load > 300:
         fatigue_level = "high"
-    elif total_minutes > 150:
+    elif training_load > 150:
         fatigue_level = "moderate"
 
     return {
         "fatigue_level": fatigue_level,
+        "training_load": round(training_load),
+        "training_load_source": load_source,
         "total_training_minutes_this_week": round(total_minutes),
         "completed_sessions": len(completed),
         "missed_sessions": len(missed),

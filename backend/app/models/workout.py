@@ -29,6 +29,7 @@ class WorkoutLog(Base):
     duration_minutes = Column(Float, nullable=True)
     distance_km = Column(Float, nullable=True)
     avg_hr = Column(Integer, nullable=True)
+    relative_effort = Column(Integer, nullable=True)  # Strava suffer_score; null without HR
     notes = Column(Text, nullable=True)
 
     source = Column(Enum(WorkoutSource), default=WorkoutSource.manual)

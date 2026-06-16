@@ -104,6 +104,8 @@ export interface DashboardSummary {
 
 export interface CrossModuleSignals {
   fatigue_level: 'low' | 'moderate' | 'high'
+  training_load: number
+  training_load_source: 'relative_effort' | 'mixed' | 'minutes'
   total_training_minutes_this_week: number
   completed_sessions: number
   missed_sessions: number

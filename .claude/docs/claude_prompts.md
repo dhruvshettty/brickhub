@@ -58,8 +58,8 @@ In order, as a plain-text block:
 - Weeks to race, race terrain, training terrain
 - Volume preference + description (gradual / steady / progressive)
 - Effort preference + description (comfortable / balanced / challenging)
-- Training goal (finish / beat_time / fitness)
-- Target finish time (if beat_time)
+- Training goal (`beat_time` = improvement plan, race optional / `race` = preparing for a race)
+- Target finish time (if `beat_time`)
 
 Then appended as notes (not in the list):
 - **Aerobic base note:** if `aerobic_base_priority`, strong instruction to keep 80%+ Zone 1–2, no tempo until week 4+

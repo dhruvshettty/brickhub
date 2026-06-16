@@ -133,12 +133,12 @@ Two tiers of gating — both live in the frontend.
 
 **Tier 2 — Module onboarding:**
 `Running.tsx`: `getRunningConfig() → { onboarded: false } → navigate('/running/setup')`
-`Food.tsx`: `getFoodConfig() → { running_onboarded: false } → navigate('/running')` (running must be set up first)
+`Food.tsx`: `getFoodConfig() → { running_onboarded: false }` → in-page `RunningRequiredGate` (no redirect — explains the cross-module dependency + CTA to `/running/setup`)
 `Food.tsx`: `getFoodConfig() → { onboarded: false } → navigate('/food/setup')`
 
 Config stored in `module_configs` (one row per profile per module, `config_json` blob). `onboarded_at` being non-null is the flag. `Dashboard.tsx` reads `running_onboarded` and `food_onboarded` from `GET /dashboard/summary`.
 
-**Food dependency gate:** `PUT /food/config` returns HTTP 400 if running is not configured. The frontend also redirects to `/running` if `running_onboarded` is false. Food without a running plan is not supported — nutrition contexts depend on the running schedule.
+**Food dependency gate:** `PUT /food/config` returns HTTP 400 if running is not configured. The Food page shows an in-page `RunningRequiredGate` (not a redirect) when `running_onboarded` is false — explains why and links to running setup. Food without a running plan is not supported — nutrition contexts depend on the running schedule.
 
 **Rule:** When adding a new module, add a Tier 2 gate in the module page. Tier 1 is global and already handles fresh users.
 

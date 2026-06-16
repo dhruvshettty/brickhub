@@ -16,7 +16,6 @@ Computes `pace = time_seconds / distance_km`, then looks up against thresholds:
 |---|---|---|---|---|
 | 5k | ≤ 210 (~3:30/km) | ≤ 255 (~4:15) | ≤ 330 (~5:30) | > 330 |
 | 10k | ≤ 222 | ≤ 270 | ≤ 348 | > 348 |
-| 10 mile | ≤ 234 | ≤ 285 | ≤ 366 | > 366 |
 | Half | ≤ 240 | ≤ 294 | ≤ 378 | > 378 |
 | Marathon | ≤ 258 | ≤ 318 | ≤ 408 | > 408 |
 | 50k | ≤ 300 | ≤ 372 | ≤ 480 | > 480 |
@@ -57,7 +56,9 @@ Caps: beginner → 4, intermediate → 5, advanced → 6, elite → 7
 
 The 0.80 factor adds conservatism — better to under-schedule and build up.
 
-When `recent_runs_4_weeks == 0`: slider auto-resets `current_weekly_km` to 0; km > 0 with 0 runs blocks Step 4 progression with an error message (inconsistency guard).
+**Capped by preferred days picked.** You can't place more runs than there are training days. On save, `RunningSetup` writes `suggested_runs_per_week = min(suggested, preferred_days.length)` so plan generation, the Step-5 summary, and the week-1 preview all agree. If the athlete picks fewer days than suggested, Step 3 nudges them to add days (non-blocking).
+
+When `recent_runs_4_weeks == 0`: slider auto-resets `current_weekly_km` to 0; km > 0 with 0 runs blocks progression with an error message (inconsistency guard).
 
 ---
 
@@ -106,16 +107,64 @@ The returning-from-break UI in wizard Step 4 appears when `0 < recentRuns4Weeks 
 
 ---
 
+## Strava Onboarding Prefill (training load + run-day pattern)
+
+`strava_onboarding.py` — `running_prefill_from_activities(activities, weeks=4)`. Derives Step-3 suggestions from the last 4 weeks of Strava runs (fetched via the existing `fetch_activities`). Emits scalars only — never raw activity JSON (AI-clause boundary). All values the user reviews + edits before save.
+
+**Training load:**
+```
+recent_runs_4_weeks = min(run_count, 30)              # clamped to slider max
+current_weekly_km   = min(round(total_km / weeks), 80) # clamped to slider max
+```
+
+**Run-day pattern** — `_run_day_pattern(runs, weeks)`:
+- `preferred_days` = weekdays with a run in ≥ half the weeks (`threshold = round(weeks/2)` → 2 of 4) — filters one-off runs.
+- `long_run_day` = the preferred weekday with the greatest **average** distance (always ∈ `preferred_days`, which the Step-3 long-run picker requires).
+- Sparse / irregular history (nothing clears the threshold) → no day keys returned; the user picks manually.
+
+Endpoint: `GET /strava/running-prefill` (read-only, degrades to empty prefill, never 500). Gated in the UI on an existing Strava connection — no mid-wizard OAuth (would wipe form state).
+
+---
+
+## Week-1 Preview Distribution
+
+`RunningSetup.tsx` — `computeWeek1Preview()`. A heuristic estimate shown on the confirm step (Claude refines the real plan). Splits `baseKm` (current weekly km, or an ability default) across the selected run days:
+
+```
+even        = baseKm / runCount
+long_run_km = baseKm                if runCount == 1
+            = round(even × 1.4)      otherwise          # biggest single session
+easy_km     = round((baseKm − long_run_km) / (runCount − 1))
+```
+
+The `× 1.4` keeps the long run the longest at **any** run count (fewer runs → it's naturally a larger slice). A fixed fraction (e.g. 35%) breaks on a 2-run week, where a lone "easy" run would otherwise get the remaining 65% and exceed the long run.
+
+---
+
 ## Fatigue Signals
 
 `cross_module.py` — `get_signals()`:
 
-Total weekly training minutes (all modules combined) → fatigue level:
-- ≤ 150 min → `low`
-- 151–300 min → `moderate`
-- > 300 min → `high`
+Weekly **training load** (a per-session effort score summed over completed sessions, all modules) → fatigue level:
+- ≤ 150 → `low`
+- 151–300 → `moderate`
+- > 300 → `high`
 
-These thresholds are intentionally simple. They exist to give Claude a rough signal, not to be medically precise. The athlete's logged `duration_minutes` per session is the input — not distance or pace.
+**Per-session effort score (hybrid):** Strava **Relative Effort** is the source of truth when available; HR-less runs fall back to a duration estimate.
+
+```
+session_load = relative_effort  if WorkoutLog.relative_effort is not None
+             else duration_minutes          # ~1 effort-point per minute estimate
+training_load = sum(session_load for completed sessions this week)
+```
+
+- `relative_effort` is Strava's `suffer_score` (HR-based), captured by the adapter and persisted on `WorkoutLog.relative_effort` (migration 011) at sync time. Strava only returns it for HR-recorded activities.
+- The estimate keeps the thresholds backward-compatible: a week with **no** Relative Effort behaves exactly like the old minutes-only model (1 pt/min). A week **with** HR runs reflects real intensity — a hard 40-min run outweighs an easy 60-min one.
+- `training_load_source` reports `relative_effort` (all completed runs had RE), `mixed` (some did), or `minutes` (none) — surfaced on the dashboard "Training Status" card.
+
+**AI-clause boundary:** only the derived `fatigue_level` bucket (and the aggregate `training_load` number) reach Claude — never raw per-activity `suffer_score`.
+
+Thresholds are intentionally simple — a rough signal for Claude, not medical precision. The aggregate "Training Load" / "Fitness & Freshness" views in Strava are premium and **not** in the API, so we sum per-activity RE ourselves.
 
 ---
 

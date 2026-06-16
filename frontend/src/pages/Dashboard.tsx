@@ -17,6 +17,13 @@ const CONTEXT_LABEL: Record<string, { label: string; color: string }> = {
 
 const RUN_TYPE_COLOR: Record<string, string> = { ...WORKOUT_TYPE_COLOR, rest: 'var(--border)' }
 
+// How the weekly fatigue was measured — Strava Relative Effort vs our duration estimate.
+const LOAD_SOURCE_LABEL: Record<string, string> = {
+  relative_effort: 'via Strava Relative Effort',
+  mixed: 'Strava Relative Effort + estimates',
+  minutes: 'estimated from duration',
+}
+
 function formatDaysToRace(days: number): string {
   if (days <= 0) return 'Race day!'
   if (days === 1) return '1 day to go'
@@ -292,6 +299,9 @@ export default function Dashboard() {
               textTransform: 'capitalize',
             }}>
               {data.signals.fatigue_level}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--ink-tertiary)', marginTop: 2 }}>
+              {LOAD_SOURCE_LABEL[data.signals.training_load_source]}
             </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 4 }}>
