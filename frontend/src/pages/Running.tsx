@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { RefreshCw, Settings2, Undo2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getRunningConfig, getRunningPlan, recalibrateRunning, logWorkout, clearWorkoutLog, PlanDay, PlanResponse, PlanEditEntry, RunningConfig, DayActivity } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
-import { WORKOUT_TYPE_COLOR } from '../lib/tokens'
+import { WORKOUT_TYPE_COLOR, ZONE_COLOR } from '../lib/tokens'
 import { Heading } from '../components/Type'
 
 const PLAN_MESSAGES = [
@@ -89,6 +89,54 @@ function PlanGeneratingScreen() {
 }
 
 const RUN_TYPE_COLOR: Record<string, string> = { ...WORKOUT_TYPE_COLOR, rest: 'transparent' }
+
+// Plain-prose explainer of the 80/20 model. No icon grid, no decorative cards
+// (DESIGN.md anti-slop). Collapsible — it's read once, then tucked away.
+function LearnPanel() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{
+      background: 'var(--surface-1)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)',
+      marginTop: 16,
+      overflow: 'hidden',
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '14px 18px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+          Why is my week split 80% easy, 20% hard?
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{open ? '↑ Hide' : '↓ Learn'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: '0 18px 18px', fontSize: 13, color: 'var(--ink-muted)', lineHeight: 1.65 }}>
+          <p style={{ marginTop: 0 }}>
+            brickhub trains you by the <strong style={{ color: 'var(--text)' }}>80/20 polarized</strong> model:
+            about 80% of your running is genuinely easy, and the other ~20% is genuinely hard. Nothing lives in
+            the moderate middle.
+          </p>
+          <p>
+            The easy days have to be <em>actually</em> easy — conversational, in your low heart-rate zones. That's
+            what builds the aerobic engine and lets you absorb the hard work without digging a fatigue hole. When
+            easy days creep into the "comfortably hard" middle, you get tired without getting fitter — the classic
+            grey-zone trap.
+          </p>
+          <p style={{ marginBottom: 0 }}>
+            The 1–2 hard sessions each week are where you push for real (tempo, intervals, race pace). Because the
+            rest of the week was easy, you can hit them fresh and go genuinely hard — which is what actually drives
+            the adaptation.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
@@ -517,6 +565,20 @@ export default function Running() {
         </div>
       )}
 
+      {plan?.polarization_warning && (
+        <div style={{
+          background: '#2a1a00',
+          border: '1px solid #5a3a00',
+          borderRadius: 'var(--radius)',
+          padding: 16,
+          marginBottom: 24,
+          fontSize: 13,
+          color: 'var(--orange)',
+        }}>
+          {plan.polarization_warning}
+        </div>
+      )}
+
       {plan && (
         <div style={{ marginBottom: 24 }}>
           <Card style={{ marginBottom: 16 }}>
@@ -662,10 +724,29 @@ export default function Running() {
                       {day.type !== 'rest' && (
                         <div style={{ fontSize: 13 }}>
                           <span className="mono" style={{ fontWeight: 600 }}>{day.distance_km} km</span>
-                          {day.pace_zone && (
+                          {day.hr_range ? (
+                            <span className="mono" style={{ color: 'var(--text-muted)', marginLeft: 8 }}>{day.hr_range}</span>
+                          ) : day.pace_zone ? (
                             <span className="mono" style={{ color: 'var(--text-muted)', marginLeft: 8 }}>{day.pace_zone}</span>
+                          ) : null}
+
+                          {/* 80/20 intensity strip — zone dot + role tag; RPE/talk-test fallback when zones unset */}
+                          {day.effort_tag && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                              {day.zone != null && (
+                                <span style={{
+                                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                                  background: ZONE_COLOR[day.zone] || 'var(--text-muted)',
+                                }} />
+                              )}
+                              <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>{day.effort_tag}</span>
+                              {!day.hr_range && day.rpe_text && (
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· {day.rpe_text}</span>
+                              )}
+                            </div>
                           )}
-                          <div style={{ color: 'var(--text-muted)', marginTop: 2, fontSize: 12 }}>
+
+                          <div style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: 12 }}>
                             {day.description}
                           </div>
                           {act && (
@@ -808,6 +889,21 @@ export default function Running() {
               )
             })}
           </div>
+
+          {plan.hr_zones_available === false && !isPastWeek && (
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12, lineHeight: 1.5 }}>
+              Showing effort by feel (RPE). Add your max heart rate in{' '}
+              <button
+                onClick={() => navigate('/settings')}
+                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer', padding: 0 }}
+              >
+                Settings
+              </button>{' '}
+              to see personal heart-rate zones on each session.
+            </p>
+          )}
+
+          <LearnPanel />
         </div>
       )}
 

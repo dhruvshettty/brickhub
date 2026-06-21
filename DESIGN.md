@@ -47,6 +47,15 @@ colors:
   module-gym: "#a855f7"       # gym
   module-food: "#22c55e"      # food
 
+  # HR zone scale: a 5-step scale used ONLY as small
+  # dots + text on day cards, NEVER as fills — desaturated so it survives the dark
+  # canvas without shouting. Cool = easy/aerobic (the 80%), warm = hard (the 20%).
+  zone-1: "#5b8aa8"           # recovery — desaturated blue
+  zone-2: "#5a9d6e"           # easy aerobic — desaturated green
+  zone-3: "#b8954f"           # grey zone — amber
+  zone-4: "#c47a45"           # threshold — desaturated orange
+  zone-5: "#c25a5a"           # VO2 / intervals — desaturated red
+
 typography:
   display-xl:   { fontFamily: Geist, fontSize: 80px, fontWeight: 600, lineHeight: 1.05, letterSpacing: -3.0px }
   display-lg:   { fontFamily: Geist, fontSize: 56px, fontWeight: 600, lineHeight: 1.10, letterSpacing: -1.8px }
@@ -150,6 +159,7 @@ components:
 - **Accent (`primary #3b82f6`):** primary CTA, focus rings, links, selected state, and the running module. Scarce and meaningful — never a card fill or section background.
 - **Semantic:** success `#22c55e` (done/on-target) · warning `#f59e0b` (partial/recalibrate) · error `#ef4444` (missed) · info `#3b82f6`.
 - **Module palette** (app extension beyond Linear's single-accent rule): run `#3b82f6` · bike `#f97316` · swim `#06b6d4` · gym `#a855f7` · food `#22c55e`. **Usage:** chart series, small tags/dots, module headers, badge text. **Never** as a full background fill. Keep them desaturated on the dark canvas.
+- **HR zone scale** (M5, user-approved deviation): a 5-step scale (`zone-1`…`zone-5`) for the running day-card intensity strip. Cool→warm encodes easy→hard (the 80/20 split). Deliberately **desaturated** so five hues coexist on the dark canvas; **dots + text only, never fills** — the no-fill rule still holds. Education tag text uses `ink-muted #d0d6e0` (not `ink-subtle`) to clear 4.5:1 on `surface-1`.
 - **Dark mode:** This system *is* dark. There is no light theme; don't ship one without an explicit redesign of surfaces.
 
 ## Typography

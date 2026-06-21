@@ -40,12 +40,6 @@ const VOLUME_OPTIONS = [
   },
 ]
 
-const EFFORT_OPTIONS = [
-  { id: 'comfortable', label: 'Comfortable', desc: '~75% easy running. Aerobic base first, intensity later.' },
-  { id: 'balanced', label: 'Balanced', desc: '80/20 easy/hard. Standard polarized training.' },
-  { id: 'challenging', label: 'Challenging', desc: 'More threshold and intervals. For athletes ready to push.' },
-]
-
 const TERRAINS = [
   { id: 'flat', label: 'Flat', desc: '< 5m/km elevation gain' },
   { id: 'rolling', label: 'Rolling', desc: '5–10m/km elevation gain' },
@@ -140,7 +134,6 @@ function computeWeek1Preview(
   suggestedRunsPerWeek: number,
   currentWeeklyKm: number,
   abilityLevel: string,
-  effortPreference: string,
 ): Week1Day[] {
   if (preferredDays.length === 0 || !longRunDay) return []
 
@@ -168,11 +161,11 @@ function computeWeek1Preview(
   const longRunKm = selected.length === 1 ? Math.round(baseKm) : Math.round(even * 1.4)
   const otherCount = selected.length - 1
   const easyKm = otherCount > 0 ? Math.round((baseKm - longRunKm) / otherCount) : 0
-  const easyLabel = effortPreference === 'challenging' ? 'Tempo run' : 'Easy run'
 
+  // Under the 80/20 model the first non-long run is always an easy run.
   return selected.map(d => ({
     day: DAY_LABELS[d],
-    type: d === longRunDay ? 'Long run' : easyLabel,
+    type: d === longRunDay ? 'Long run' : 'Easy run',
     km: d === longRunDay ? longRunKm : easyKm,
   }))
 }
@@ -546,8 +539,6 @@ function Step3({
   setLongRunDay,
   volumePreference,
   setVolumePreference,
-  effortPreference,
-  setEffortPreference,
   isPrimarySport,
   setIsPrimarySport,
   preferencesUserSet,
@@ -576,8 +567,6 @@ function Step3({
   setLongRunDay: (v: string) => void
   volumePreference: string
   setVolumePreference: (v: string) => void
-  effortPreference: string
-  setEffortPreference: (v: string) => void
   isPrimarySport: boolean
   setIsPrimarySport: (v: boolean) => void
   preferencesUserSet: boolean
@@ -613,7 +602,6 @@ function Step3({
   }
 
   const handleVolumeChange = (v: string) => { setVolumePreference(v); onPreferenceChange() }
-  const handleEffortChange = (v: string) => { setEffortPreference(v); onPreferenceChange() }
   const handlePrimaryChange = (v: boolean) => { setIsPrimarySport(v); onPreferenceChange() }
 
   const kmRequired = recentRuns4Weeks > 0 && currentWeeklyKm === 0
@@ -986,7 +974,7 @@ function Step3({
             <span style={{ fontSize: 13, fontWeight: 600 }}>Training preferences</span>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
               {preferencesUserSet ? '' : 'Auto · '}
-              Volume: {capitalise(volumePreference)} · Effort: {capitalise(effortPreference)}
+              Volume: {capitalise(volumePreference)}
               {isPrimarySport && ' · Primary sport'}
             </span>
           </div>
@@ -1021,21 +1009,14 @@ function Step3({
             </div>
 
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
-                Training effort
+              <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+                Training intensity
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                {EFFORT_OPTIONS.map(e => (
-                  <div
-                    key={e.id}
-                    style={tile(effortPreference === e.id)}
-                    onClick={() => handleEffortChange(e.id)}
-                  >
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{e.label}</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6, lineHeight: 1.4 }}>{e.desc}</div>
-                  </div>
-                ))}
-              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+                Every plan follows the <strong style={{ color: 'var(--text)' }}>80/20 polarized</strong> model:
+                roughly 80% of your runs are genuinely easy and ~20% are genuinely hard — no grey-zone junk
+                miles. It's not a setting, it's how brickhub trains everyone.
+              </p>
             </div>
 
             <div style={{
@@ -1286,7 +1267,6 @@ function Step5({
     raceTerrain: string
     trainingTerrain: string
     volumePreference: string
-    effortPreference: string
     isPrimarySport: boolean
     preferencesUserSet: boolean
     currentWeeklyKm: number
@@ -1322,7 +1302,7 @@ function Step5({
     ['Race terrain', capitalise(config.raceTerrain) || '—'],
     ['Training terrain', capitalise(config.trainingTerrain) || '—'],
     ['Volume', `${capitalise(config.volumePreference)}${config.preferencesUserSet ? '' : ' (auto)'}`],
-    ['Effort', `${capitalise(config.effortPreference)}${config.preferencesUserSet ? '' : ' (auto)'}`],
+    ['Intensity', '80/20 polarized'],
     ...(config.isPrimarySport ? [['Primary sport', 'Yes — plan takes precedence'] as [string, string]] : []),
   ]
 
@@ -1332,7 +1312,6 @@ function Step5({
     config.suggestedRunsPerWeek,
     config.currentWeeklyKm,
     config.abilityLevelForPreview,
-    config.effortPreference,
   )
   const previewTotal = preview.reduce((sum, d) => sum + d.km, 0)
 
@@ -1465,7 +1444,6 @@ export default function RunningSetup() {
   const [preferredDays, setPreferredDays] = useState<string[]>([])
   const [longRunDay, setLongRunDay] = useState('')
   const [volumePreference, setVolumePreference] = useState('gradual')
-  const [effortPreference, setEffortPreference] = useState('comfortable')
   const [isPrimarySport, setIsPrimarySport] = useState(false)
   const [preferencesUserSet, setPreferencesUserSet] = useState(false)
 
@@ -1512,7 +1490,6 @@ export default function RunningSetup() {
         if (config.plan_weeks) setPlanWeeks(config.plan_weeks)
         if (config.plan_start_date) setPlanStartDate(config.plan_start_date)
         if (config.volume_preference) setVolumePreference(config.volume_preference)
-        if (config.effort_preference) setEffortPreference(config.effort_preference)
         setIsPrimarySport(config.is_primary_sport ?? false)
         setPreferencesUserSet(config.preferences_user_set ?? false)
         if (config.returning_from_break) setReturningFromBreak(true)
@@ -1546,19 +1523,18 @@ export default function RunningSetup() {
     return () => clearTimeout(t)
   }, [targetDistance, bestTimeSeconds, effortScore, hasPreviousRace])
 
-  // Auto-derive volume/effort preferences from ability level (only when not user-set)
+  // Auto-derive volume preference from ability level (only when not user-set).
+  // Effort is gone — intensity is the fixed 80/20 model for everyone.
   useEffect(() => {
     if (preferencesUserSet) return
-    if (aerobicBasePriority) { setVolumePreference('gradual'); setEffortPreference('comfortable'); return }
-    const defaults: Record<string, { vol: string; eff: string }> = {
-      beginner:     { vol: 'gradual',      eff: 'comfortable' },
-      intermediate: { vol: 'steady',       eff: 'balanced'    },
-      advanced:     { vol: 'progressive',  eff: 'challenging' },
-      elite:        { vol: 'progressive',  eff: 'challenging' },
+    if (aerobicBasePriority) { setVolumePreference('gradual'); return }
+    const defaults: Record<string, string> = {
+      beginner: 'gradual',
+      intermediate: 'steady',
+      advanced: 'progressive',
+      elite: 'progressive',
     }
-    const d = defaults[abilityLevel] ?? defaults.intermediate
-    setVolumePreference(d.vol)
-    setEffortPreference(d.eff)
+    setVolumePreference(defaults[abilityLevel] ?? 'steady')
   }, [abilityLevel, aerobicBasePriority, preferencesUserSet])
 
   // Update suggested runs when recentRuns4Weeks changes
@@ -1606,7 +1582,6 @@ export default function RunningSetup() {
         race_terrain: raceTerrain || null,
         training_terrain: trainingTerrain || null,
         volume_preference: volumePreference,
-        effort_preference: effortPreference,
         is_primary_sport: isPrimarySport,
         preferences_user_set: preferencesUserSet,
         training_goal: trainingGoal || null,
@@ -1689,8 +1664,6 @@ export default function RunningSetup() {
           setLongRunDay={setLongRunDay}
           volumePreference={volumePreference}
           setVolumePreference={setVolumePreference}
-          effortPreference={effortPreference}
-          setEffortPreference={setEffortPreference}
           isPrimarySport={isPrimarySport}
           setIsPrimarySport={setIsPrimarySport}
           preferencesUserSet={preferencesUserSet}
@@ -1742,7 +1715,6 @@ export default function RunningSetup() {
             raceTerrain,
             trainingTerrain,
             volumePreference,
-            effortPreference,
             isPrimarySport,
             preferencesUserSet,
             currentWeeklyKm,

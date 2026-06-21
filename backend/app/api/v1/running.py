@@ -15,6 +15,7 @@ from app.models.plan_edit import PlanEdit
 from app.models.profile import Profile
 from app.models.workout import ModuleType, WorkoutLog, WorkoutSource
 from app.services.claude_service import ClaudeUnavailableError, get_claude_service
+from app.services.hr_zones import bind_education, derive_zones
 from app.services.plan_generator import generate_running_plan, save_plan
 from app.services.running_ability import classify, suggest_weekly_runs
 from app.services.workout_adjuster import recalibrate_running
@@ -58,7 +59,6 @@ class RunningConfigRequest(BaseModel):
     race_terrain: str | None = None
     training_terrain: str | None = None
     volume_preference: str | None = None
-    effort_preference: str | None = None
     is_primary_sport: bool = False
     preferences_user_set: bool = False
     training_goal: str | None = None
@@ -189,6 +189,24 @@ def _plan_edits_for_week(db: Session, week_start: date) -> dict[str, dict]:
     return result
 
 
+def _bind_plan_education(plan_json: dict | None, profile: Profile) -> dict | None:
+    """Stitch UI-only HR ranges + 80/20 effort tags onto each day at read-time.
+
+    Derived from the session `type` against the profile's zones — NOT persisted,
+    NEVER sent to Claude (AI-clause boundary). Read-time means pre-M5 cached plans
+    render correctly with zero plan_json change, and editing HRmax in Settings
+    reflects immediately. Zones unset ⇒ RPE/talk-test fallback per day.
+    """
+    if not plan_json or "days" not in plan_json:
+        return plan_json
+    zones = derive_zones(profile.hr_max_bpm)
+    return {
+        **plan_json,
+        "days": [bind_education(d, zones) for d in plan_json.get("days", [])],
+        "hr_zones_available": zones is not None,
+    }
+
+
 @router.get("/plan")
 def get_running_plan(week_start: date | None = None, db: Session = Depends(get_db)):
     if week_start is None:
@@ -198,6 +216,7 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
     day_logs = _day_logs_for_week(db, week_start)
     day_activities = _day_activities_for_week(db, week_start)
     plan_edits = _plan_edits_for_week(db, week_start)
+    profile = _get_or_create_profile(db)
 
     plan = db.query(WeeklyPlan).filter(
         WeeklyPlan.module == "running",
@@ -205,7 +224,7 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
     ).first()
 
     if plan:
-        return {"plan": plan.plan_json, "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
+        return {"plan": _bind_plan_education(plan.plan_json, profile), "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
 
     # Never generate a plan retroactively for past weeks — what's stored is the record.
     today = date.today()
@@ -213,12 +232,11 @@ def get_running_plan(week_start: date | None = None, db: Session = Depends(get_d
     if week_start < current_week_start:
         return {"plan": None, "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
 
-    profile = _get_or_create_profile(db)
     try:
         claude = get_claude_service()
         plan_json = generate_running_plan(db, claude, profile, week_start)
         save_plan(db, "running", week_start, plan_json)
-        return {"plan": plan_json, "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
+        return {"plan": _bind_plan_education(plan_json, profile), "ai_unavailable": False, "day_logs": day_logs, "day_activities": day_activities, "plan_edits": plan_edits}
     except ClaudeUnavailableError:
         return {
             "plan": None,
@@ -283,8 +301,9 @@ def apply_plan_change(req: ApplyPlanChangeRequest, db: Session = Depends(get_db)
     db.commit()
     db.refresh(plan)
 
+    profile = _get_or_create_profile(db)
     plan_edits = _plan_edits_for_week(db, week_start)
-    return {"plan": plan.plan_json, "plan_edits": plan_edits, "applied": True}
+    return {"plan": _bind_plan_education(plan.plan_json, profile), "plan_edits": plan_edits, "applied": True}
 
 
 @router.post("/log")

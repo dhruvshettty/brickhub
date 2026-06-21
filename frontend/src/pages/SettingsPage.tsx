@@ -3,6 +3,25 @@ import { getProfile, updateProfile, Profile } from '../lib/api'
 import Card, { CardTitle } from '../components/Card'
 import StravaCard from '../components/StravaCard'
 import { Heading } from '../components/Type'
+import { ZONE_COLOR } from '../lib/tokens'
+
+// Mirrors hr_zones.py ZONE_BANDS (%HRmax) — client-side so zones preview live as
+// the user types, before the round-trip. The backend remains the source of truth.
+const ZONE_BANDS: [number, [number, number]][] = [
+  [1, [0.55, 0.72]],
+  [2, [0.72, 0.82]],
+  [3, [0.82, 0.87]],
+  [4, [0.87, 0.92]],
+  [5, [0.92, 1.0]],
+]
+const ZONE_LABELS: Record<number, string> = {
+  1: 'Recovery', 2: 'Easy (aerobic)', 3: 'Grey zone', 4: 'Threshold', 5: 'VO₂ max',
+}
+
+function deriveZones(hrMax: number | null): [number, [number, number]][] | null {
+  if (!hrMax || hrMax <= 0) return null
+  return ZONE_BANDS.map(([z, [lo, hi]]) => [z, [Math.round(hrMax * lo), Math.round(hrMax * hi)]])
+}
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -13,8 +32,13 @@ export default function SettingsPage() {
     getProfile().then(setProfile).catch(() => {})
   }, [])
 
+  const hrMax = profile?.hr_max_bpm ?? null
+  const hrError = hrMax != null && (hrMax < 120 || hrMax > 220)
+    ? 'Max heart rate should be between 120 and 220 bpm.'
+    : ''
+
   const handleSave = async () => {
-    if (!profile) return
+    if (!profile || hrError) return
     setSaving(true)
     try {
       const updated = await updateProfile({
@@ -25,6 +49,7 @@ export default function SettingsPage() {
         sex: profile.sex,
         unit_preference: profile.unit_preference,
         weekly_training_hours: profile.weekly_training_hours,
+        hr_max_bpm: profile.hr_max_bpm,
       })
       setProfile(updated)
       setSaved(true)
@@ -35,6 +60,8 @@ export default function SettingsPage() {
   }
 
   if (!profile) return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
+
+  const zones = deriveZones(hrError ? null : hrMax)
 
   const metric = profile.unit_preference !== 'imperial'
 
@@ -193,11 +220,67 @@ export default function SettingsPage() {
 
       </Card>
 
+      <Card style={{ marginBottom: 16 }}>
+        <CardTitle>Heart rate zones</CardTitle>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: -4, marginBottom: 20, lineHeight: 1.5 }}>
+          Used to show personal effort targets on each running session. Seeded from your age
+          (220 − age) and editable here. These are estimates, not lab values.
+        </p>
+
+        {field('Max heart rate (bpm)', (
+          <>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={120}
+              max={220}
+              value={profile.hr_max_bpm ?? ''}
+              onChange={e => {
+                const v = parseInt(e.target.value)
+                setProfile(p => p && ({ ...p, hr_max_bpm: isNaN(v) ? null : v }))
+              }}
+              placeholder={profile.age ? String(220 - profile.age) : '190'}
+              style={{ ...inputStyle, minHeight: 44, fontSize: 16 }}
+            />
+            {hrError && (
+              <p style={{ fontSize: 12, color: 'var(--red)', marginTop: 6 }}>{hrError}</p>
+            )}
+            {!hrError && profile.hr_max_bpm == null && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                {profile.age
+                  ? 'Leave blank to seed from your age on save.'
+                  : 'Add your age above, or enter your max HR directly, to unlock zones.'}
+              </p>
+            )}
+          </>
+        ))}
+
+        {zones && (
+          <div style={{ marginTop: 4 }}>
+            {zones.map(([z, [lo, hi]]) => (
+              <div key={z} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 0',
+                borderBottom: z < 5 ? '1px solid var(--border)' : 'none',
+              }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                  background: ZONE_COLOR[z] || 'var(--text-muted)',
+                }} />
+                <span style={{ fontSize: 13, width: 28, color: 'var(--text-muted)' }}>Z{z}</span>
+                <span style={{ fontSize: 13, flex: 1 }}>{ZONE_LABELS[z]}</span>
+                <span className="mono" style={{ fontSize: 13, color: 'var(--ink-muted)' }}>{lo}–{hi} bpm</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <StravaCard />
 
       <button
         onClick={handleSave}
-        disabled={saving}
+        disabled={saving || !!hrError}
         style={{
           background: saved ? '#14532d' : 'var(--accent)',
           border: 'none',
@@ -206,7 +289,8 @@ export default function SettingsPage() {
           padding: '10px 24px',
           fontSize: 14,
           fontWeight: 600,
-          opacity: saving ? 0.7 : 1,
+          opacity: saving || hrError ? 0.7 : 1,
+          cursor: hrError ? 'not-allowed' : 'pointer',
           transition: 'background 0.2s',
         }}
       >

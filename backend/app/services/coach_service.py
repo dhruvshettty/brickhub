@@ -20,6 +20,7 @@ from app.models.plan import WeeklyPlan
 from app.models.coach import CoachMessage, MessageRole
 from app.services.claude_service import ClaudeService, ClaudeUnavailableError
 from app.services.cross_module import get_signals, signals_to_context_string
+from app.services.plan_generator import eighty_twenty_rule
 
 _PLAN_CHANGE_RE = re.compile(r"<plan_change>(.*?)</plan_change>", re.DOTALL)
 
@@ -77,12 +78,14 @@ def _build_coach_system(profile: Profile, db: Session, today: date) -> str:
         plan_section = _format_plan_for_coach(running_plan.plan_json, day_logs, today)
 
     race_info = ""
+    aerobic = False
     running_config = db.query(ModuleConfig).filter(
         ModuleConfig.profile_id == profile.id,
         ModuleConfig.module == "running",
     ).first()
     if running_config:
         cfg = running_config.config_json
+        aerobic = bool(cfg.get("aerobic_base_priority"))
         race_date_str = cfg.get("race_date")
         target_distance = cfg.get("target_distance")
         if race_date_str and target_distance:
@@ -103,6 +106,10 @@ Current training signals:
 
 This week's running plan (week of {week_start}):
 {plan_section}
+
+--- TRAINING MODEL ---
+{eighty_twenty_rule(aerobic)}
+Any plan change you propose MUST keep the week polarized — never pile on a 3rd hard session, and never swap an easy day into the moderate grey zone.
 
 --- HOW TO HANDLE PLAN CHANGE REQUESTS ---
 

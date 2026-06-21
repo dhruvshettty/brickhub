@@ -38,6 +38,18 @@ export const FATIGUE_COLOR: Record<string, string> = {
   high: '#ef4444',
 }
 
+// HR zone (1-5) → color. DESIGN.md-sanctioned deviation (user-approved): a 5-step
+// scale, but DESATURATED / dark-canvas-safe, used ONLY as small dots + text — never
+// as fills (DESIGN.md's no-fill rule still holds). Cool = easy/aerobic (the 80%),
+// warm = hard (the 20%); Z3 is the amber grey-zone. Mirrored in DESIGN.md token block.
+export const ZONE_COLOR: Record<number, string> = {
+  1: '#5b8aa8',  // recovery — desaturated blue
+  2: '#5a9d6e',  // easy aerobic — desaturated green
+  3: '#b8954f',  // grey zone — amber
+  4: '#c47a45',  // threshold — desaturated orange
+  5: '#c25a5a',  // VO2/interval — desaturated red
+}
+
 // Module → color. Matches --module-* in index.css.
 export const MODULE_COLOR: Record<string, string> = {
   running: '#3b82f6',

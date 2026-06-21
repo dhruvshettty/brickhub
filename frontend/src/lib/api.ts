@@ -78,6 +78,9 @@ export interface Profile {
   sex: string | null
   unit_preference: string
   weekly_training_hours: number
+  hr_max_bpm: number | null
+  // 5 derived (low, high) bpm bands keyed "1".."5"; null when HRmax unset.
+  hr_zones?: Record<string, [number, number]> | null
 }
 
 export interface DashboardSummary {
@@ -122,6 +125,14 @@ export interface PlanDay {
   duration_minutes: number
   pace_zone: string | null
   description: string
+  // Read-time 80/20 education (UI-only; stitched from session type, never from Claude).
+  intensity?: 'easy' | 'hard' | null   // bucket; absent on rest days
+  zone?: number | null                 // prescribed HR zone (1-5)
+  hr_range?: string | null             // e.g. "Zone 2 · ~137-156 bpm"; null when zones unset
+  hr_low?: number | null
+  hr_high?: number | null
+  effort_tag?: string | null           // terse 80/20 role tag
+  rpe_text?: string | null             // talk-test fallback when zones unset
 }
 
 export interface PlanEditEntry {
@@ -144,6 +155,8 @@ export interface PlanResponse {
     module: string
     summary: string
     recalibration_note?: string
+    polarization_warning?: string
+    hr_zones_available?: boolean
     days: PlanDay[]
   } | null
   ai_unavailable: boolean
@@ -202,7 +215,6 @@ export interface RunningConfig {
   race_terrain: string | null
   training_terrain: string | null
   volume_preference: string | null
-  effort_preference: string | null
   is_primary_sport: boolean
   preferences_user_set: boolean
   training_goal?: string | null
@@ -237,7 +249,6 @@ export interface RunningConfigRequest {
   race_terrain?: string | null
   training_terrain?: string | null
   volume_preference?: string | null
-  effort_preference?: string | null
   is_primary_sport?: boolean
   preferences_user_set?: boolean
   training_goal?: string | null

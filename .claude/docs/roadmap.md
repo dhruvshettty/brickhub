@@ -354,10 +354,13 @@ the M0 profile prefill (Phase 3).
 
 ---
 
-## M5 — 80/20 Polarized Model & Education 🔲 FUTURE
+## M5 — 80/20 Polarized Model & Education ✅ COMPLETE
 
 Make brickhub an explicit **80/20 polarized** training app (one fixed model, not a choice), and open the
 black box: explain *why* each session is what it is, in 80/20 language, using the athlete's own HR zones.
+
+Built on branch `m5-8020-education` (single commit). New module `hr_zones.py`, migration 012, 38 new
+backend tests (full suite 103 pass), `tsc` clean.
 
 **Scope reduced 2026-06-20** (was "Training Methodology & Education" — a 3-method selector). The
 multi-method plan (80/20 / Norwegian double-threshold / base-first Lydiard, with a switch-to-experiment
@@ -366,26 +369,25 @@ Norwegian doubles, and 80/20 already half-ships as `effort_preference=balanced`.
 model + the education layer. Design doc (APPROVED): `~/.gstack/projects/dhruvshettty-brickhub/dhruvshetty-main-design-20260620-212356.md`
 (supersedes the multi-method `…-20260616-095414.md`).
 
-### 80/20 as the single model
-- [ ] Encode one 80/20 distribution rule in Python (successor to the `effort_desc` dict) + a post-generation guardrail
-- [ ] Session-type buckets over the real enum (no `threshold` type): easy = `easy`/`recovery`/`long`; hard = `tempo`/`interval`/`race_pace`; `rest` excluded
-- [ ] Guardrail (in `plan_generator`, tested): 1–2 hard-bucket sessions, majority of non-rest sessions easy; regenerate-once-then-warn **+ log the trip** in `uvicorn.log` on violation. **Coarse session-count check (not volume-exact); at n=2 accept 1 easy + 1 hard, don't false-warn.** Exception: `aerobic_base_priority` -> 0 hard allowed **unconditionally** (no week-index — codebase has none)
-- [ ] **Remove `effort_preference`** (comfortable/balanced/challenging) everywhere — schema, `effort_desc`, prompt note (`plan_generator.py:84-85`), RunningSetup `EFFORT_OPTIONS`/state/Step-5 tile/ability auto-derive/week-1 preview `challenging`→tempo branch, `api.ts`. Keep `preferences_user_set` rescoped to `volume_preference` only. Keep `volume_preference` unchanged.
-- [ ] Recalibration (`workout_adjuster`) and coach `<plan_change>` stay 80/20 (inject the same rule) so week 2+ doesn't drift
-- [ ] Coach reads raw `plan_json` (no HR), never the read-time HR-bound view (AI-clause boundary)
+### 80/20 as the single model ✅ Done
+- [x] One 80/20 distribution rule in Python — `plan_generator.eighty_twenty_rule()` (successor to `effort_desc`) + `check_polarization()` guardrail
+- [x] Session-type buckets in `hr_zones.py` (defined once, reused by guardrail + HR binding): easy = `easy`/`recovery`/`long`; hard = `tempo`/`interval`/`race_pace`; `rest` excluded
+- [x] Guardrail (in `plan_generator`, tested): 1–2 hard-bucket sessions, majority easy; regenerate-once-then-warn + `logger.warning("polarization_trip …")` in `uvicorn.log`; sets `plan_json["polarization_warning"]` on a still-bad reship. Coarse session-count check; n=2 accepts ≤1 hard without false-warn; `aerobic_base_priority` → 0 hard allowed **unconditionally** (≤2 ceiling + majority-easy still hold)
+- [x] **Removed `effort_preference`** everywhere — `RunningConfigRequest`, `_running_config_context`, `api.ts`, RunningSetup (`EFFORT_OPTIONS`/state/Step-3 tile→static note/Step-5 row/auto-derive/week-1 preview). `preferences_user_set` rescoped to volume-only; `volume_preference` unchanged
+- [x] Recalibration (`workout_adjuster`) + coach inject `eighty_twenty_rule()` (+ guardrail in recalibrate) so week 2+ doesn't drift
+- [x] Coach reads raw `plan_json` (no HR) — HR binding lives only in `GET /running/plan` assembly (AI-clause boundary; tested)
 
-### Personalized HR zones (fixed profile property)
-- [ ] Add Profile `hr_max_bpm` (migration 012), seeded from `220 − age` at profile save, editable in Settings. No Strava ingest, no `WorkoutLog.max_hr`, no adapter change
-- [ ] `hr_zones.py` — pure deterministic helper: HRmax → 5 zone `(low, high)` bands via fixed %HRmax. AI-clause safe (Python-derived; HR range never enters a prompt)
-- [ ] Bind HR range from **session `type`** (not Claude's `pace_zone` literal) at read-time in `GET /running/plan` — one source for both the HR range and the easy/hard tag, so a card can't self-contradict. UI-only field, never Claude's `rationale`. Read-time = pre-M5 cached plans render fine, Settings edits reflect immediately
+### Personalized HR zones (fixed profile property) ✅ Done
+- [x] Profile `hr_max_bpm` (migration 012), seeded from `220 − age` at profile save (seed-once; age edit never clobbers a set value), editable in Settings. No Strava ingest, no `WorkoutLog` change, no adapter change
+- [x] `hr_zones.py` — pure deterministic helper: HRmax → 5 zone `(low, high)` bands via fixed %HRmax. AI-clause safe
+- [x] Bind HR range from **session `type`** at read-time in `GET /running/plan` (`_bind_plan_education`) — one source for HR range + easy/hard tag. UI-only, never Claude's `rationale`. Pre-M5 cached plans render fine; Settings edits reflect immediately
 
-### Education (80/20-anchored)
-- [ ] Day-card **intensity strip**: HR extends the mono zone line (`Zone 4 · ~168-178 bpm`) + a terse 80/20 **role tag** ("the 20% — hard" / "80% easy"), NOT prose — distinct from existing `description`/`rationale`. Tag text uses `ink-muted` (4.5:1 contrast)
-- [ ] No-HR fallback: age-based zones; no age → RPE / talk-test text only (never blank, never fake)
-- [ ] Learn panel on the Running page: polarization principle in prose on `surface-1` — **NO icon-grid / decorative cards** (anti-slop)
-- [ ] **5-zone color scale** (DESIGN.md deviation, user-approved): desaturated/dark-safe, dots+text only never fills; add `zone-1..zone-5` to `frontend/src/lib/tokens.ts` **AND** DESIGN.md token block
-- [ ] Settings HR-zone editor: `text-input` tokens, ≥44px touch targets, validate HRmax ~120-220 + inline error + save confirm
-- [ ] Tests: 80/20 guardrail (incl. n=2 + unconditional aerobic-base + trip-log), HR-zone derivation + RPE fallback, AI-clause boundary, `effort_preference` removal, recalibration-stays-80/20
+### Education (80/20-anchored) ✅ Done
+- [x] Day-card **intensity strip**: HR extends the mono line (`Zone 4 · ~168-178 bpm`) + terse 80/20 role tag + zone dot; tag in `ink-muted`. RPE/talk-test fallback when zones unset (never blank/fake)
+- [x] Learn panel on the Running page: collapsible prose on `surface-1`, no icon-grid/decorative cards
+- [x] **5-zone color scale** (`zone-1..zone-5`) added to `frontend/src/lib/tokens.ts` AND DESIGN.md token block + rationale; desaturated, dots+text only
+- [x] Settings HR-zone editor: ≥44px input, validate HRmax 120-220 + inline error + save confirm; live zone preview; nudge when unset
+- [x] Tests: guardrail (n=2 + unconditional aerobic-base + trip path), HR-zone derivation + RPE fallback, AI-clause, `effort_preference` removal, recalibration/coach stay 80/20, migration 012 + seed
 
 ### Decisions settled (CEO + eng + design review, 2026-06-20/21)
 All open questions resolved — see design doc for full rationale. Within-80/20 sub-dial: removed. `aerobic_base_priority`: unconditional 0-hard guardrail exception. No-age: unset + RPE + Settings nudge. Zone bands: 80/20-tuned %HRmax (Z1<72, Z2 72-82, Z3 82-87, Z4 87-92, Z5>92). Guardrail: regenerate-once-then-warn + log. Plan is implementation-ready.

@@ -15,6 +15,11 @@ class Profile(Base):
     unit_preference = Column(String, default="metric")
     weekly_training_hours = Column(Integer, default=8)
 
+    # Max heart rate (bpm). Seeded once from 220 − age at profile save, then
+    # user-editable in Settings. Drives the deterministic 5-zone derivation in
+    # hr_zones.py. Nullable: no age + not entered ⇒ zones unset ⇒ RPE fallback.
+    hr_max_bpm = Column(Integer, nullable=True)
+
     # Strava integration — single-user self-hosted, so the OAuth token and sync
     # cursor live on the one profile row (no per-user token table).
     strava_athlete_id = Column(String, nullable=True)

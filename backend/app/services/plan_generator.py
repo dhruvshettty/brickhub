@@ -5,6 +5,8 @@ and inject them into the Claude prompt so plans are aware of each other.
 """
 
 import json
+import logging
+import re
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
@@ -15,6 +17,9 @@ from app.models.plan import WeeklyPlan, ModuleType
 from app.models.workout import WorkoutLog
 from app.services.claude_service import ClaudeService, ClaudeUnavailableError
 from app.services.cross_module import get_signals, signals_to_context_string
+from app.services.hr_zones import EASY_TYPES, HARD_TYPES
+
+logger = logging.getLogger("uvicorn.error")
 
 
 RUN_TYPES = {
@@ -23,6 +28,71 @@ RUN_TYPES = {
     "70.3": ["easy", "tempo", "interval", "long", "race_pace"],
     "ironman": ["easy", "tempo", "interval", "long", "race_pace", "recovery"],
 }
+
+
+def eighty_twenty_rule(aerobic_base_priority: bool = False) -> str:
+    """The single fixed 80/20 polarized distribution rule, injected into every
+    plan-shaping prompt (generation, recalibration, coach). Successor to the old
+    `effort_desc` dict — there is no longer a comfortable/balanced/challenging knob.
+    """
+    rule = (
+        "\nTRAINING MODEL — 80/20 POLARIZED (this is the fixed model; do not deviate):"
+        "\n  - ~80% of sessions must be genuinely EASY (easy / recovery / long) — conversational,"
+        " Zone 1-2 aerobic. Easy means easy; never let an easy day drift into moderate effort."
+        "\n  - The remaining ~20% is genuinely HARD: 1-2 quality sessions per week (tempo / interval /"
+        " race_pace) run at real intensity (Zone 4-5). Never schedule 3 or more hard sessions in a week."
+        "\n  - NO grey-zone junk miles: do not water down the hard days, and do not push the easy days"
+        " into the moderate middle."
+        "\n  - The long run counts as easy/aerobic, not as a hard session."
+    )
+    if aerobic_base_priority:
+        rule += (
+            "\n  - AEROBIC-BASE PRIORITY: this athlete's aerobic base is the limiter. A week with ZERO"
+            " hard sessions (all easy) is perfectly acceptable — do not force a hard session in. Introduce"
+            " intensity only gradually (around week 4+), and never more than 1-2 hard sessions."
+        )
+    return rule
+
+
+def check_polarization(days: list[dict], aerobic_base_priority: bool = False) -> tuple[bool, dict]:
+    """Coarse polarization sanity check on SESSION COUNTS (not volume-exact —
+    session count != time share, and minutes are planned estimates). Over non-rest
+    sessions, using the shared easy/hard buckets:
+
+    - n >= 3: 1-2 hard (>=1 so the 20% exists, <=2 to enforce polarization) AND
+      majority easy (count_easy >= count_hard).
+    - n == 2 (the suggest_weekly_runs floor): the n>=3 rule is structurally
+      impossible, so accept anything up to 1 hard — only 2 hard / 0 easy trips.
+    - aerobic_base_priority: the >=1 hard lower bound is dropped UNCONDITIONALLY
+      (0 hard always fine); the <=2 ceiling + majority-easy still hold.
+    - n < 2: nothing to enforce.
+
+    Returns (passes, counts) where counts = {n, hard, easy}.
+    """
+    non_rest = [d for d in days if d.get("type") != "rest"]
+    n = len(non_rest)
+    count_hard = sum(1 for d in non_rest if d.get("type") in HARD_TYPES)
+    count_easy = sum(1 for d in non_rest if d.get("type") in EASY_TYPES)
+    counts = {"n": n, "hard": count_hard, "easy": count_easy}
+
+    if n < 2:
+        return True, counts
+    if aerobic_base_priority:
+        return (count_hard <= 2 and count_easy >= count_hard), counts
+    if n == 2:
+        return (count_hard <= 1), counts
+    return (1 <= count_hard <= 2 and count_easy >= count_hard), counts
+
+
+def _parse_plan_json(raw: str) -> dict:
+    """Parse Claude's plan response, tolerating wrapping prose."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise ValueError(f"Could not parse plan JSON from Claude response: {raw[:200]}")
 
 
 def _profile_context(profile: Profile) -> str:
@@ -44,13 +114,7 @@ def _running_config_context(config: dict, today: date) -> str:
         except ValueError:
             pass
 
-    aerobic_note = ""
-    if config.get("aerobic_base_priority"):
-        aerobic_note = (
-            "\nIMPORTANT: This athlete's aerobic base is their primary limiter. "
-            "Prioritise Zone 1-2 easy running. Keep at least 80% of sessions easy. "
-            "Do not add tempo or interval work until week 4+."
-        )
+    eighty_twenty_note = eighty_twenty_rule(bool(config.get("aerobic_base_priority")))
 
     race_terrain = config.get("race_terrain") or "unknown"
     training_terrain = config.get("training_terrain") or "unknown"
@@ -63,17 +127,11 @@ def _running_config_context(config: dict, today: date) -> str:
         )
 
     volume_pref = config.get("volume_preference") or "steady"
-    effort_pref = config.get("effort_preference") or "balanced"
 
     volume_desc = {
         "gradual": "conservative ~5%/week progression, lots of easy running, prioritise consistency over intensity",
         "steady": "standard ~8-10%/week progression, balanced build",
         "progressive": "block periodization — hard build weeks followed by planned recovery weeks, aggressive progression",
-    }
-    effort_desc = {
-        "comfortable": "70-75% easy running, minimal intensity work, aerobic base focus",
-        "balanced": "80/20 easy/hard, standard polarized training",
-        "challenging": "push aerobic capacity with more threshold and interval sessions",
     }
 
     primary_note = ""
@@ -82,7 +140,7 @@ def _running_config_context(config: dict, today: date) -> str:
 
     user_set_note = ""
     if config.get("preferences_user_set"):
-        user_set_note = "\nNote: athlete explicitly set volume and effort preferences — respect these even if cross-module signals suggest otherwise."
+        user_set_note = "\nNote: athlete explicitly set their volume preference — respect it even if cross-module signals suggest otherwise."
 
     training_goal = config.get("training_goal")
     goal_map = {
@@ -110,7 +168,6 @@ def _running_config_context(config: dict, today: date) -> str:
         f"Race terrain: {race_terrain}",
         f"Training terrain: {training_terrain}",
         f"Volume preference: {volume_pref} — {volume_desc.get(volume_pref, '')}",
-        f"Effort preference: {effort_pref} — {effort_desc.get(effort_pref, '')}",
     ]
     if training_goal_line:
         lines.append(training_goal_line)
@@ -157,7 +214,7 @@ def _running_config_context(config: dict, today: date) -> str:
                     " Prioritise easy aerobic running and joint-friendly movement."
                 )
 
-    return "\n".join(lines) + aerobic_note + terrain_note + primary_note + user_set_note + break_note
+    return "\n".join(lines) + eighty_twenty_note + terrain_note + primary_note + user_set_note + break_note
 
 
 def generate_running_plan(
@@ -249,17 +306,30 @@ Schedule runs on the athlete's preferred days when possible.
 
 Use {week_start.isoformat()} as the week_start value in your JSON response."""
 
-    raw = claude.generate_with_cache(system_parts, user_prompt, call_type="plan_generation")
+    aerobic = bool(running_config.get("aerobic_base_priority"))
 
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        # Claude returned something with wrapping text — extract JSON
-        import re
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        raise ValueError(f"Could not parse plan JSON from Claude response: {raw[:200]}")
+    def _generate() -> dict:
+        raw = claude.generate_with_cache(system_parts, user_prompt, call_type="plan_generation")
+        return _parse_plan_json(raw)
+
+    plan_json = _generate()
+    ok, counts = check_polarization(plan_json.get("days", []), aerobic)
+    if not ok:
+        # Regenerate once; if it's still off, ship with a warning but log the trip
+        # so recurring 80/20 prompt-drift stays visible, not silent.
+        retry = _generate()
+        ok_retry, counts_retry = check_polarization(retry.get("days", []), aerobic)
+        plan_json = retry
+        logger.warning(
+            "polarization_trip module=running first=%s retry=%s aerobic_base=%s regen_fixed=%s",
+            counts, counts_retry, aerobic, ok_retry,
+        )
+        if not ok_retry:
+            plan_json["polarization_warning"] = (
+                "This week's plan isn't a clean 80/20 split (aim for 1-2 genuinely hard sessions "
+                "and keep the rest easy). It was generated anyway — review it before training."
+            )
+    return plan_json
 
 
 def save_plan(db: Session, module: str, week_start: date, plan_json: dict) -> WeeklyPlan:
